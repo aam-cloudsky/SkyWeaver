@@ -1,0 +1,20 @@
+[project]
+name = "skyweaver"
+version = "0.1.0"
+description = "A modular simulator to organize airspace constraints and orchestrate future autonomous aerial operations."
+authors = [
+    {name = "DaviGuanabara",email = "davi_guanabara@live.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas (>=2.3.0,<3.0.0)",
+    "numpy (>=2.3.1,<3.0.0)",
+    "geopandas (>=1.1.1,<2.0.0)",
+    "shapely (>=2.1.1,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
