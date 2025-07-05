@@ -121,10 +121,11 @@ First experiment with dynamic routing, opening the way for future autonomous age
 
 ## 🚩 Next Steps
 
-- Implement Grid area over Rio de Janeiro
-- Export it to QGIS
-- Read file heliport restrictions
-- Otimize heliport restrictions - MileStone
+- Implement the grid covering Rio de Janeiro.
+- Export the grid to QGIS for visual validation.
+- Read the heliport restriction files.
+- Optimize and apply heliport restrictions — **First Milestone**.
+
 
 ---
 
