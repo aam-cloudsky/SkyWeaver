@@ -181,4 +181,5 @@ cython_debug/
 .cursorindexingignore
 
 
-data/geojson/*.geojson
+/data/geojson/*.geojson
+*.geojson
