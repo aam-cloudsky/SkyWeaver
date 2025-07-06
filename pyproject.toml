@@ -5,6 +5,7 @@ description = "A modular simulator to organize airspace constraints and orchestr
 authors = [
     {name = "DaviGuanabara",email = "davi_guanabara@live.com"}
 ]
+
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -18,3 +19,9 @@ dependencies = [
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+
+[tool.poetry]
+packages = [
+    { include = "skyweaver", from = "src" }
+]
