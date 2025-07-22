@@ -44,9 +44,11 @@ class GeoJSONManager:
             if use_cache:
                 self._cache[file_path] = gdf
             print(f"✅ Successfully read GeoJSON: {file_path}")
+            print("CRS:", gdf.crs)
             return gdf
         except Exception as e:
             print(f"❌ Error reading GeoJSON {file_path}: {e}")
+            return None
 
 
 
