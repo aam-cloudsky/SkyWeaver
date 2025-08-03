@@ -11,7 +11,7 @@ def generate_grid_over_polygon(
     geojson_input_path,
     output_path,
     cell_size=500,
-    crs_meters=31983
+    epsg=4326
 ):
     """
     Gera um grid quadrado sobre um polígono dado, salvando como GeoJSON.
@@ -21,10 +21,7 @@ def generate_grid_over_polygon(
     - geojson_input_path: str – Caminho para o arquivo GeoJSON do polígono.
     - output_path: str – Caminho para salvar o grid gerado.
     - cell_size: float – Tamanho da célula em metros.
-    - crs_meters: int – Código EPSG para projeção métrica (default: 31983 – UTM zona 23S - Brasil).
-    Os dados padrão do IBGE são CRS: EPSG:4674, porém não usa UTM, assim as coordenadas estão em graus.
-    Já o CRS 31983 é uma projeção UTM que usa metros, o que é mais adequado para cálculos espaciais precisos.
-    TODO: Verficar o CRS de cada GeoJSON e transformar tudo para EPSG 31983.
+    - epsg: int – Código EPSG para projeção (default: 4326 – WGS 84).
     """
     manager = GeoJSONManager()
     gdf = manager.read_geojson(geojson_input_path)
@@ -36,7 +33,7 @@ def generate_grid_over_polygon(
         raise ValueError("GeoJSON sem CRS definido.")
 
     # Reprojeta para sistema métrico, se necessário
-    gdf_metric = gdf.to_crs(epsg=crs_meters)
+    gdf_metric = gdf.to_crs(epsg=epsg)
 
     minx, miny, maxx, maxy = gdf_metric.total_bounds
 
@@ -49,7 +46,7 @@ def generate_grid_over_polygon(
             square = box(float(x), float(y), float(x + cell_size), float(y + cell_size))
             grid_cells.append(square)
 
-    grid = gpd.GeoDataFrame(geometry=grid_cells, crs=f"EPSG:{crs_meters}")
+    grid = gpd.GeoDataFrame(geometry=grid_cells, crs=f"EPSG:{epsg}")
     clipped = grid[grid.intersects(gdf_metric.unary_union)].copy()
 
     # Adiciona ID sequencial

@@ -30,7 +30,7 @@ class GeoJSONManager:
         self._cache = {}  # Optional: in-memory cache of loaded GeoJSON
         self._initialized = True
 
-    def read_geojson(self, file_path, use_cache=True):
+    def read_geojson(self, file_path, use_cache=True) -> gpd.GeoDataFrame:
         """
         Reads a GeoJSON file into a GeoDataFrame.
         Optionally caches the result to avoid reloading.
