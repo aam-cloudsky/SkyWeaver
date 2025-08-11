@@ -1,5 +1,5 @@
 import geopandas as gpd
-from skyweaver.geo_json_manager import GeoJSONManager
+from skyweaver.managers.geo_json_manager import GeoJSONManager
 from skyweaver.paths import (
     change_to_project_root,
     get_ibge_malha_path,

@@ -2,7 +2,7 @@
 
 import geopandas as gpd
 from shapely.geometry import Point
-from skyweaver.geo_json_manager import GeoJSONManager
+from skyweaver.managers.geo_json_manager import GeoJSONManager
 from skyweaver.paths import prepare_data_path, change_to_project_root
 
 RESTRICTION_RADIUS_METERS = 3704  # 2 milhas náuticas

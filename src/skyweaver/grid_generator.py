@@ -3,7 +3,7 @@
 import geopandas as gpd
 from shapely.geometry import box
 import numpy as np
-from skyweaver.geo_json_manager import GeoJSONManager
+from skyweaver.managers.geo_json_manager import GeoJSONManager
 from skyweaver.paths import change_to_project_root, prepare_data_path
 
 

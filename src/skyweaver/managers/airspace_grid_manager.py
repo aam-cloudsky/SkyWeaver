@@ -5,13 +5,14 @@ import numpy as np
 from shapely import unary_union
 from shapely.geometry import Polygon, Point
 from typing import Tuple, Optional, Dict
-from skyweaver.dataclasses.restriction import Restriction
+from skyweaver.data_models.restriction import Restriction
 from skyweaver.enums.grid_channels import GridChannels
 from pyproj import Transformer
 from math import atan2, cos, sin
 
 from skyweaver.enums.restriction_source import RestrictionSource
 from skyweaver.enums.shapes import RestrictionShape
+import matplotlib.pyplot as plt
 
 
 class AirspaceGrid:
@@ -188,30 +189,19 @@ class AirspaceGrid:
                 self.grid[channel, g_top : g_top + submask.shape[0], g_left : g_left + submask.shape[1]] |= submask.astype(bool)
 
 
-    # ======== Angular position API (sem expor Restriction) ========
-
-    def _angle_of_point(self, p: Point) -> float:
-        return atan2(p.y - self._pivot.y, p.x - self._pivot.x)
-
-    def _radius_of_point(self, p: Point) -> float:
-        return ((p.x - self._pivot.x) ** 2 + (p.y - self._pivot.y) ** 2) ** 0.5
-
-    def get_restriction_angle(self, restriction_id: int) -> Optional[float]:
+    def get_restriction_rotation(self, restriction_id: int) -> Optional[float]:
         r = self.restrictions.get(restriction_id)
         if r is None:
             return None
-        return self._angle_of_point(r.location)
+        return r.rotation
 
-    def get_all_restriction_angles(self) -> Dict[int, float]:
-        return {rid: self._angle_of_point(r.location) for rid, r in self.restrictions.items()}
+    def get_all_restriction_rotations(self) -> Dict[int, float]:
+        return {rid: r.rotation for rid, r in self.restrictions.items()}
 
-    def set_restriction_angle(
+    def set_restriction_rotation(
         self,
         restriction_id: int,
         theta: float,
-        *,
-        keep_radius: bool = True,
-        radius: Optional[float] = None,
     ) -> bool:
         """
         update retriction angular position.
@@ -221,22 +211,14 @@ class AirspaceGrid:
         if r is None:
             return False
 
-        if keep_radius:
-            rad = self._radius_of_point(r.location)
-        else:
-            if radius is None:
-                return False
-            rad = radius
 
-        newx = self._pivot.x + rad * cos(theta)
-        newy = self._pivot.y + rad * sin(theta)
-        r.location = Point(newx, newy)
+        r.rotation = theta
         return True
     
-    def rotate_restrictions(self, radians: Dict[int, float]):
+    def rotate_restrictions(self, id_radians: Dict[int, float]):
         """
         updates restriction angles based on restrinction ids. angle must be in radians"""
-        for id, radian in radians.items():
+        for id, radian in id_radians.items():
 
             self.restrictions[id].rotation = radian
 
@@ -297,17 +279,19 @@ class AirspaceGrid:
         """
         self.grid[GridChannels.RESTRICTION.value, :, :] = False  # clear restriction layer
 
-
+        for rid, _ in self.restrictions.items():
+            self.rotate_restrictions({rid: 0.0})
+            self.restrictions[rid].rotation = 0.0
 
     def plot_graph(self):
   
         fig, axes = plt.subplots(1, 2, figsize=(10, 5))
         axes[0].set_title("CITY_MASK")
-        im0 = axes[0].imshow(mgr.grid[GridChannels.CITY_MASK.value], origin="lower")
+        im0 = axes[0].imshow(self.grid[GridChannels.CITY_MASK.value], origin="lower")
         fig.colorbar(im0, ax=axes[0], fraction=0.046)
 
         axes[1].set_title("RESTRICTION")
-        im1 = axes[1].imshow(mgr.grid[GridChannels.RESTRICTION.value], origin="lower")
+        im1 = axes[1].imshow(self.grid[GridChannels.RESTRICTION.value], origin="lower")
         fig.colorbar(im1, ax=axes[1], fraction=0.046)
 
         for ax in axes:
@@ -339,7 +323,6 @@ if __name__ == "__main__":
     - Adiciona 3 restrições circulares (raio em metros)
     - Aplica e plota CITY_MASK e RESTRICTION
     """
-    import matplotlib.pyplot as plt
 
     # 1) mapa retangular simples no CRS do grid (por ex. UTM 23S, metros)
     #    Aqui: um retângulo 10km x 8km
