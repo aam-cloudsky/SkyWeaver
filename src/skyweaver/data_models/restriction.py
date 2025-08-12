@@ -7,6 +7,7 @@ from shapely import Point, Polygon
 from shapely.affinity import rotate
 from skyweaver.enums.shapes import RestrictionShape
 from skyweaver.enums.restriction_source import RestrictionSource
+from skyweaver.managers.components.stamp import Stamp
 
 
 @dataclass
@@ -45,14 +46,15 @@ class Restriction:
             raise ValueError(f"Unsupported shape: {self.shape.name}")
 
     def to_polygon(self) -> Polygon:
-  
         """
         Returns a local shapely Polygon centered at (0,0), representing the restriction's shape,
         already rotated by `self.rotation`. This acts like a 'stamp' that can be translated over a global grid.
         """
 
         polygon = self._retrieve_polygon()
-        return rotate(polygon, angle=self.rotation, origin=Point(0, 0), use_radians=True)
+        return rotate(
+            polygon, angle=self.rotation, origin=Point(0, 0), use_radians=True
+        )
 
     def _disk_polygon(self) -> Polygon:
         """
@@ -63,15 +65,19 @@ class Restriction:
     def _rectangle_polygon(self) -> Polygon:
         # radius is diagonal length, so half side is radius / sqrt(2)
         half_side = self.radius / np.sqrt(2)
-        return Polygon([
-            (- half_side, - half_side),
-            (+ half_side, - half_side),
-            (+ half_side, + half_side),
-            (- half_side, + half_side),
-        ])
+        return Polygon(
+            [
+                (-half_side, -half_side),
+                (+half_side, -half_side),
+                (+half_side, +half_side),
+                (-half_side, +half_side),
+            ]
+        )
 
-    def _circular_sector_polygon(self, angle_rad: float = (2/3)*np.pi, n_points: int = 32) -> Polygon:
-        #TODO: Can I remove this N_points parameter?
+    def _circular_sector_polygon(
+        self, angle_rad: float = (2 / 3) * np.pi, n_points: int = 32
+    ) -> Polygon:
+        # TODO: Can I remove this N_points parameter?
         """
         Returns a circular sector polygon with the specified angle in radians.
         The sector is centered at (0, 0) and extends out to the specified radius
@@ -82,71 +88,36 @@ class Restriction:
         points: List[Point] = [Point(0, 0)]
         for i in range(n_points + 1):
             theta = start_angle + i * (end_angle - start_angle) / n_points
-            x = + self.radius * np.cos(theta)
-            y = + self.radius * np.sin(theta)
+            x = +self.radius * np.cos(theta)
+            y = +self.radius * np.sin(theta)
             points.append(Point(x, y))
         return Polygon(points)
 
     def to_cell_mask(self, cell_size: float) -> np.ndarray:
         """
-        Converts this restriction (represented as a polygon) into a binary mask array.
-        The output is a 2D grid (numpy array), where each cell represents a square of `cell_size` meters.
-        A value of 1 means the cell intersects with the restriction area (polygon), 0 means it does not.
-        The restriction polygon is centered at (0, 0), and this mask acts like a "stamp".
-
-        Parameters:
-            cell_size (float): Size of each cell in meters (e.g., 1.0 means 1m x 1m resolution)
-
-        Returns:
-            np.ndarray: Binary array mask indicating which cells intersect the polygon.
+        Returns the rasterized mask of the restriction rotated by `self.rotation`.
+        Uses IDEALStamp for fast repeated rotations.
         """
+        if not hasattr(self, "_ideal_stamp"):
+            # Criar polígono base centrado em (0,0)
+            base_polygon = self._retrieve_polygon()
+            # Criar carimbo IDEAL
+            self._ideal_stamp = Stamp(base_polygon, cell_size)
+            # Guardar os bounds originais para alinhamento
+            self._stamp_minx = self._ideal_stamp.minx
+            self._stamp_miny = self._ideal_stamp.miny
 
-        # Ensure bounding box covers entire rotated shape
-        bounding_radius = self.radius * np.sqrt(2)
+        # Gerar máscara rotacionada usando ângulo atual
+        mask_local = self._ideal_stamp.rotated_mask(self.rotation)
 
-        # Convert meters to number of cells
-        half_side_cells = int(np.ceil(bounding_radius / cell_size)) + 1
-        grid_size = 2 * half_side_cells
-        n_rows, n_cols = grid_size, grid_size
-
-        # Coordinates of bottom-left corner of the grid
-        min_x = -half_side_cells * cell_size
-        min_y = -half_side_cells * cell_size
-
-        # Initialize empty binary mask
-        mask = np.zeros((n_rows, n_cols), dtype=np.int32)
-
-        # Generate the base polygon (e.g., disk, square, sector)
-        rotated_polygon = self.to_polygon()
-
-        # Loop through the grid and test for intersection with the rotated polygon
-        for i in range(n_rows):
-            for j in range(n_cols):
-                # Bottom-left corner of the current cell
-                x0 = min_x + j * cell_size
-                y0 = min_y + i * cell_size
-
-                # Define the square polygon representing the cell
-                cell = Polygon([
-                    (x0, y0),
-                    (x0 + cell_size, y0),
-                    (x0 + cell_size, y0 + cell_size),
-                    (x0, y0 + cell_size),
-                ])
-
-                # Set cell to 1 if intersects rotated polygon
-                if cell.intersects(rotated_polygon):
-                    mask[i, j] = 1
-
-        return mask
+        return mask_local
 
     def plot_mask(self, mask: np.ndarray):
-        plt.imshow(mask, cmap='Greys', origin='lower')
+        plt.imshow(mask, cmap="Greys", origin="lower")
         plt.title("Restriction Mask")
         plt.show()
 
-
-        #print("Imagem salva como restriction_mask.png")
+        # print("Imagem salva como restriction_mask.png")
 
 
 if __name__ == "__main__":
@@ -159,7 +130,7 @@ if __name__ == "__main__":
         shape=RestrictionShape.DISK,
         radius=10.0,
         source=RestrictionSource.UNKNOWN,
-        rotation=0.0
+        rotation=0.0,
     )
 
     rectangle1 = Restriction(
@@ -167,7 +138,7 @@ if __name__ == "__main__":
         shape=RestrictionShape.CIRCULAR_SECTOR,
         radius=10.0,
         source=RestrictionSource.UNKNOWN,
-        rotation=0
+        rotation=0,
     )
 
     rectangle2 = Restriction(
@@ -175,7 +146,7 @@ if __name__ == "__main__":
         shape=RestrictionShape.CIRCULAR_SECTOR,
         radius=10.0,
         source=RestrictionSource.UNKNOWN,
-        rotation=np.pi / 4  # 45 graus
+        rotation=np.pi / 4,  # 45 graus
     )
 
     # 2. Gerar máscaras
