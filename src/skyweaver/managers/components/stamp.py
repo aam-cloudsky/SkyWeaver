@@ -78,6 +78,7 @@ class Stamp:
 
         self.border_points = np.array(border_points, dtype=np.float32)  # (N, 2)
 
+    #TODO: CACHE THIS FUNCTION. BUT I NEED TO MAKE ANGLE RAD INCREMENTAL.
     def rotated_mask(self, angle_rad: float) -> np.ndarray:
         """Gera máscara para o polígono rotacionado."""
         # Matriz de rotação
