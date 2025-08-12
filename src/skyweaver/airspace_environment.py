@@ -219,7 +219,7 @@ if __name__ == "__main__":
     env = AirspaceEnv(
         city_geojson_path=str(grid_path),
         restrictions_geojson_path=str(heliport_path),
-        cell_size=500
+        cell_size=50
     )
 
     observation, info = env.reset()
