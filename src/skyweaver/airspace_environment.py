@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import math
+import time
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
@@ -66,7 +67,10 @@ class AirspaceEnv(gym.Env):
 
         self.airspace_grid = AirspaceGrid(source_map=source_map, cell_size=self.cell_size)
         restrictions_geojson = self.geojson_manager.read_geojson(self.restrictions_geojson_path, use_cache=True)
+        print("restrictions read")
+        print("loading restrictions")
         self._load_restrictions_from_geojson(restrictions_geojson)
+        print("restrictions loaded")
     
     def _load_restrictions_from_geojson(self, gdf_restr):
         """
@@ -78,12 +82,16 @@ class AirspaceEnv(gym.Env):
         - source: string (default "UNKNOWN")
         The true CRS of 'gdf_restr' is passed down to AirspaceGrid so it can transform properly.
         """
+
+        
         crs_str = str(gdf_restr.crs) if gdf_restr.crs else "EPSG:4326"
-        NM_IN_METERS = 1852.0
+        NM_IN_METERS:int = 1852
 
         # Keep internal state as dict id->radians (raw). Observation will return normalized.
         self._restriction_ids: Dict[int, float] = {}
 
+        start_time = time.perf_counter()
+        elapsed_times = []
         for _, row in gdf_restr.iterrows():
             geom = row.geometry
             if not isinstance(geom, Point):
@@ -93,7 +101,7 @@ class AirspaceEnv(gym.Env):
                 continue
             
             shape_name = str("CIRCULAR_SECTOR").upper()
-            radius_val = 2 * NM_IN_METERS #2 milhas nauticas #float(row.get("radius", 500.0))
+            radius_val:int = 2 * NM_IN_METERS #2 milhas nauticas #float(row.get("radius", 500.0))
             rotation_val = float(row.get("rotation", 0.0))
             source_name = str(row.get("source", "UNKNOWN")).upper()
 
@@ -116,7 +124,13 @@ class AirspaceEnv(gym.Env):
                 location_epsg=crs_str,
             )
             # Store raw radians internally; we'll normalize in compute_observation().
-            self._restriction_ids[rid] = rotation_val
+        self._restriction_ids[rid] = rotation_val
+
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        elapsed_times.append(elapsed_time)
+        print(f"Restriction {rid} loaded. Elapsed time: {elapsed_time:.4f} seconds. Predicted: {len(gdf_restr) * np.mean(elapsed_times):.4f} seconds total.")
+
 
 
         
@@ -213,8 +227,12 @@ if __name__ == "__main__":
     pr.enable()
 
     change_to_project_root()
+    print("grid path")
     grid_path = prepare_data_path("municipios_rj", "rio_niteroi.geojson")
+    print("heliport path")
     heliport_path = prepare_data_path("geojson", "heliport.geojson")
+
+    print("creating env")
 
     env = AirspaceEnv(
         city_geojson_path=str(grid_path),
@@ -222,12 +240,14 @@ if __name__ == "__main__":
         cell_size=50
     )
 
+    print("reset env")
     observation, info = env.reset()
 
+    print("initial observation:", observation)
     for _ in range(1):
         action = {}
         for rid, rotation in observation.items():
-            action[rid] = rotation + np.random.uniform(-0.1, 0.1)  # Random delta for demonstration
+            action[rid] = np.random.uniform(-np.pi, np.pi)  # Random delta for demonstration
         observation, reward, terminated, _, _ = env.step(norm_rotations=action)
         env.plot_graph()
 

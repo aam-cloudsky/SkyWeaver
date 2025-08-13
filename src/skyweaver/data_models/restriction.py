@@ -14,10 +14,10 @@ from functools import cache
 class Restriction:
     id: int
     shape: RestrictionShape
-    radius: float  # in meters
+    radius: int  # in meters
     source: RestrictionSource
     location: Point = Point(0.0, 0.0)
-    rotation: float = 0.0  # in radians, clockwise
+    rotation: float = 0.0  # in radians, clockwise. -pi to pi
 
     def __repr__(self):
         return f"Restriction(id={self.id}, location={self.location}, shape={self.shape}, radius={self.radius}, rotation={self.rotation}, source={self.source})"
@@ -34,7 +34,7 @@ class Restriction:
 
     @staticmethod
     @cache
-    def _retrieve_polygon(shape: RestrictionShape, radius: float) -> Polygon:
+    def _retrieve_polygon(shape: RestrictionShape, radius: int) -> Polygon:
         """
         Returns the polygon representation of the restriction shape.
         """
@@ -62,7 +62,7 @@ class Restriction:
 
     @staticmethod
     @cache
-    def _disk_polygon(radius) -> Polygon:
+    def _disk_polygon(radius: int) -> Polygon:
         """
         Returns a circular polygon with the specified radius.
         """
@@ -70,7 +70,7 @@ class Restriction:
 
     @staticmethod
     @cache
-    def _rectangle_polygon(radius) -> Polygon:
+    def _rectangle_polygon(radius: int) -> Polygon:
         # radius is diagonal length, so half side is radius / sqrt(2)
         half_side = radius / np.sqrt(2)
         return Polygon(
@@ -85,7 +85,7 @@ class Restriction:
     @staticmethod
     @cache
     def _circular_sector_polygon(
-        radius, angle_rad: float = (2 / 3) * np.pi
+        radius: int, angle_rad: float = (2 / 3) * np.pi
     ) -> Polygon:
         """
         Return a triangular polygon that approximates the circular sector.
@@ -137,7 +137,9 @@ class Restriction:
     
     @staticmethod
     @cache
-    def _get_cached_stamp(shape: RestrictionShape, radius: float, cell_size: float) -> Stamp:
+    # radius is in meters. It should be int to increase performance.
+    # fraction of meters is too much for this problem.
+    def _get_cached_stamp(shape: RestrictionShape, radius: int, cell_size: float) -> Stamp:
         base_polygon = Restriction._retrieve_polygon(shape, radius)
         return Stamp(base_polygon, cell_size)
     
@@ -145,7 +147,10 @@ class Restriction:
         # Recupera stamp cacheado
         stamp = self._get_cached_stamp(self.shape, self.radius, cell_size)
         # Aplica rotação dinâmica
-        return stamp.rotated_mask(self.rotation)
+        radian = self.rotation # -pi to pi
+        step = 1
+        degree = round(np.degrees(radian) / step) * step
+        return stamp.rotated_mask(degree)
     
     """
     def to_cell_mask(self, cell_size: float) -> np.ndarray:
@@ -184,7 +189,7 @@ if __name__ == "__main__":
     disk = Restriction(
         id=1,
         shape=RestrictionShape.DISK,
-        radius=10.0,
+        radius=10,
         source=RestrictionSource.UNKNOWN,
         rotation=0.0,
     )
@@ -192,7 +197,7 @@ if __name__ == "__main__":
     rectangle1 = Restriction(
         id=2,
         shape=RestrictionShape.CIRCULAR_SECTOR,
-        radius=10.0,
+        radius=10,
         source=RestrictionSource.UNKNOWN,
         rotation=0,
     )
@@ -200,7 +205,7 @@ if __name__ == "__main__":
     rectangle2 = Restriction(
         id=2,
         shape=RestrictionShape.CIRCULAR_SECTOR,
-        radius=10.0,
+        radius=10,
         source=RestrictionSource.UNKNOWN,
         rotation=np.pi / 4,  # 45 graus
     )

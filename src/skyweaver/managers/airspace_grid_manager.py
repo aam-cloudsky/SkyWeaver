@@ -1,5 +1,6 @@
 # src/skyweaver/managers/airspace_grid.py
 
+import time
 import geopandas as gpd
 import numpy as np
 from shapely import unary_union
@@ -14,6 +15,7 @@ from skyweaver.enums.restriction_source import RestrictionSource
 from skyweaver.enums.shapes import RestrictionShape
 import matplotlib.pyplot as plt
 
+import rastreio
 
 class AirspaceGrid:
     """
@@ -49,7 +51,9 @@ class AirspaceGrid:
         self._restriction_counter = 0
 
         # pivô para ângulo (centroide do mapa no CRS do grid)
-        self._pivot: Point = self.source_map.unary_union.centroid
+        #The getter for property "unary_union" is deprecated
+        #Use method `union_all` instead
+        #self._pivot: Point = self.source_map.union_all().centroid
 
         # transformer 4326->grid (para pontos em lat/lon)
         self._t_4326_to_grid = Transformer.from_crs("EPSG:4326", self.crs, always_xy=True)
@@ -78,7 +82,7 @@ class AirspaceGrid:
     def add_restriction(
         self,
         shape: RestrictionShape,
-        radius: float,
+        radius: int,
         location: Point,
         source: RestrictionSource = RestrictionSource.UNKNOWN,
         rotation: float = 0.0,
@@ -117,26 +121,6 @@ class AirspaceGrid:
 
         grid = np.zeros((len(GridChannels), n_rows, n_cols), dtype=bool)
 
-        polygons = []
-        for i in range(n_rows):
-            for j in range(n_cols):
-                x0 = minx + j * cell_size
-                y0 = miny + i * cell_size
-                poly = Polygon(
-                    [
-                        (x0, y0),
-                        (x0 + cell_size, y0),
-                        (x0 + cell_size, y0 + cell_size),
-                        (x0, y0 + cell_size),
-                    ]
-                )
-                polygons.append(poly)
-
-        cells_gdf = gpd.GeoDataFrame(geometry=polygons, crs=self.crs)
-        mask = cells_gdf.intersects(unary_union(self.source_map.geometry))
-        grid[GridChannels.CITY_MASK.value] = (
-            mask.to_numpy().reshape((n_rows, n_cols)).astype(bool)
-        )
         return grid
 
     def init_grid(self):
@@ -161,6 +145,8 @@ class AirspaceGrid:
         if not self.restrictions:
             return
 
+        start_time = time.perf_counter()
+        elapsed_times = []
         for rid, restriction in self.restrictions.items():
             mask = restriction.to_cell_mask(self.cell_size)  # (h, w)
             h, w = mask.shape
@@ -187,6 +173,11 @@ class AirspaceGrid:
                 submask = mask[i0:i1, j0:j1]
                 # aplica como OR
                 self.grid[channel, g_top : g_top + submask.shape[0], g_left : g_left + submask.shape[1]] |= submask.astype(bool)
+
+            end_time = time.perf_counter()
+            elapsed_time = end_time - start_time
+            elapsed_times.append(elapsed_time)
+            print(f"Restriction {rid} loaded. Elapsed time: {elapsed_time:.4f} seconds. Predicted: {len(self.restrictions) * np.mean(elapsed_times):.4f} seconds total.")
 
 
     def get_restriction_rotation(self, restriction_id: int) -> Optional[float]:
@@ -218,6 +209,7 @@ class AirspaceGrid:
     def rotate_restrictions(self, id_radians: Dict[int, float]):
         """
         updates restriction angles based on restrinction ids. angle must be in radians"""
+        print(f"[air space grid manager] Rotating restrictions: {id_radians}")
         for id, radian in id_radians.items():
 
             self.restrictions[id].rotation = radian
@@ -338,7 +330,7 @@ if __name__ == "__main__":
 
     r1 = mgr.add_restriction(
         shape=RestrictionShape.DISK,
-        radius=1200.0,
+        radius=1200,
         location=Point(2500, 2500),
         source=RestrictionSource.HELIPORT,
         rotation=0.0,
@@ -346,14 +338,14 @@ if __name__ == "__main__":
     )
     r2 = mgr.add_restriction(
         shape=RestrictionShape.CIRCULAR_SECTOR,
-        radius=800.0,
+        radius=800,
         location=Point(7500, 3000),
         source=RestrictionSource.HELIPORT,
         location_epsg=grid_crs,
     )
     r3 = mgr.add_restriction(
         shape=RestrictionShape.CIRCULAR_SECTOR, #square not working
-        radius=1000.0,
+        radius=1000,
         location=Point(8000, 3000),
         source=RestrictionSource.UNKNOWN,
         location_epsg=grid_crs,
