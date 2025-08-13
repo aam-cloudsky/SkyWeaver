@@ -1,15 +1,14 @@
-# optimize_airspace.py
+# optimize_airspace_scipy.py
 
 import numpy as np
-from pyswarm import pso
+from scipy.optimize import differential_evolution
 from skyweaver.airspace_environment import AirspaceEnv
 from skyweaver.paths import prepare_data_path, change_to_project_root
 
-# -----------------------------
+# =================
 # Setup do ambiente
-# -----------------------------
+# =================
 change_to_project_root()
-
 grid_path = prepare_data_path("municipios_rj", "rio_niteroi.geojson")
 heliport_path = prepare_data_path("geojson", "heliport.geojson")
 
@@ -20,48 +19,44 @@ env = AirspaceEnv(
 )
 
 obs, _ = env.reset()
-restriction_ids = list(obs.keys())
-n_restrictions = len(restriction_ids)
+n_vars = len(obs)  # número de variáveis = nº de restrições
 
-# -----------------------------
+# =================
 # Função objetivo
-# -----------------------------
+# =================
 
 
-def fitness(x):
+def objective(x):
     """
-    Cost function to PSO.
+    Converte vetor numpy -> dict esperado pelo env.step()
+    Retorna negativo do reward, pois o scipy.optimize minimiza.
     """
-    # Monta dict {restriction_id: rotation_norm}
-    actions = {rid: val for rid, val in zip(restriction_ids, x)}
-
-    # Aplica ação e calcula reward
-    obs, reward, done, _, _ = env.step(actions)
-
-    # Reward = [0,1], max better. But pyswarm minimizes it.
-    return 1-reward
+    env.reset()
+    action = {rid: float(val) for rid, val in zip(obs.keys(), x)}
+    _, reward, _, _, _ = env.step(action)
+    return -reward  # invertendo para maximizar reward
 
 
-# -----------------------------
-# Rodando o PSO
-# -----------------------------
-lb = [-1.0] * n_restrictions  # limites inferiores
-ub = [1.0] * n_restrictions   # limites superiores
+# =================
+# Otimização com Differential Evolution
+# =================
+bounds = [(-1.0, 1.0)] * n_vars
 
-best_x, best_cost = pso(
-    fitness,
-    lb,
-    ub,
-    swarmsize=30,
-    maxiter=50,
-    debug=True
+result = differential_evolution(
+    objective,
+    bounds,
+    strategy='best1bin',
+    maxiter=1000,       # número máximo de gerações
+    popsize=15,        # tamanho da população
+    tol=1e-6,
+    mutation=(0.5, 1),
+    recombination=0.7,
+    polish=True,       # refinamento final
+    disp=True
 )
 
-#print("\nMelhor solução encontrada:")
-#for rid, val in zip(restriction_ids, best_x):
-    #print(f"  Restrição {rid}: rotação normalizada {val:.4f}")
+best_solution = result.x
+best_reward = -result.fun  # invertendo para o valor real do reward
 
-print(f"Melhor reward: {-best_cost:.4f} (space saved %)")
-
-# Plot final
-env.plot_graph()
+print("\nBest solution found:", best_solution)
+print(f"Occupation optimized in: {best_reward *100:.1f}%")
