@@ -144,13 +144,31 @@ class Restriction:
         return Stamp(base_polygon, cell_size)
     
     def to_cell_mask(self, cell_size: float) -> np.ndarray:
-        # Recupera stamp cacheado
+        """
+        Returns the rasterized mask of the restriction at its current rotation.
+        Uses cached Stamp to avoid recomputing the base polygon.
+        """
+
+        #TODO: Should i keep or remove self.cell_size storage ?
+        self.cell_size = cell_size
         stamp = self._get_cached_stamp(self.shape, self.radius, cell_size)
-        # Aplica rotação dinâmica
-        radian = self.rotation # -pi to pi
+
+        # Apply current rotation (rounded to 1-degree step)
+        radian = self.rotation
         step = 1
         degree = round(np.degrees(radian) / step) * step
         return stamp.rotated_mask(degree)
+
+
+    def occupation_in_cells(self, cell_size: float) -> int:
+        """
+        Returns the number of cells occupied by this restriction individually,
+        ignoring overlaps with other restrictions. Rotation is fixed at 0 degrees.
+        """
+        stamp = self._get_cached_stamp(self.shape, self.radius, cell_size)
+        mask = stamp.rotated_mask(0)
+        return int(np.count_nonzero(mask))
+
     
     """
     def to_cell_mask(self, cell_size: float) -> np.ndarray:

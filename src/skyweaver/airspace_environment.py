@@ -67,10 +67,9 @@ class AirspaceEnv(gym.Env):
 
         self.airspace_grid = AirspaceGrid(source_map=source_map, cell_size=self.cell_size)
         restrictions_geojson = self.geojson_manager.read_geojson(self.restrictions_geojson_path, use_cache=True)
-        print("restrictions read")
-        print("loading restrictions")
+
         self._load_restrictions_from_geojson(restrictions_geojson)
-        print("restrictions loaded")
+
     
     def _load_restrictions_from_geojson(self, gdf_restr):
         """
@@ -90,8 +89,8 @@ class AirspaceEnv(gym.Env):
         # Keep internal state as dict id->radians (raw). Observation will return normalized.
         self._restriction_ids: Dict[int, float] = {}
 
-        start_time = time.perf_counter()
-        elapsed_times = []
+        
+
         for _, row in gdf_restr.iterrows():
             geom = row.geometry
             if not isinstance(geom, Point):
@@ -124,12 +123,7 @@ class AirspaceEnv(gym.Env):
                 location_epsg=crs_str,
             )
             # Store raw radians internally; we'll normalize in compute_observation().
-        self._restriction_ids[rid] = rotation_val
-
-        end_time = time.perf_counter()
-        elapsed_time = end_time - start_time
-        elapsed_times.append(elapsed_time)
-        print(f"Restriction {rid} loaded. Elapsed time: {elapsed_time:.4f} seconds. Predicted: {len(gdf_restr) * np.mean(elapsed_times):.4f} seconds total.")
+            self._restriction_ids[rid] = rotation_val
 
 
 
@@ -157,13 +151,13 @@ class AirspaceEnv(gym.Env):
     
     def _norm_to_rad(self, norm: float) -> float:
         """
-        Denormalize a value from [0,1] back to radians using [-pi, +pi] as the canonical range.
+        Denormalize a value from [-1,1] back to radians using [-pi, +pi] as the canonical range.
         """
-        return float(norm * 2 * math.pi - math.pi)
+        return float(norm * np.pi)
     
     def denormalize_action(self, action: Dict[int, float]) -> Dict[int, float]:
         """
-        Normalize action values from [-1, 1] to [0, 1] for each restriction id.
+        Normalize action values from [-1, 1] to [-pi, +pi] for each restriction id.
         """
         rad = {}
         for rid, norm in action.items():
@@ -184,10 +178,24 @@ class AirspaceEnv(gym.Env):
             self._restriction_ids[rid] = rad
         return obs
 
-
     def compute_reward(self) -> float:
-        # Compute the reward based on the current state of the airspace grid
-        return self.airspace_grid.compute_free_space_pct()
+        """
+        Computes the reward as a ratio between:
+        - individual_sum: sum of individually occupied cells by each restriction
+        - actual_occupation: cells actually occupied in the grid
+        (overlaps count only once)
+        higher ratio, better the overlap.
+        """
+        actual_occupation = self.airspace_grid.compute_actual_occupation()
+        if actual_occupation == 0:
+            return 0.0
+
+        individual_sum = self.airspace_grid.compute_individual_sum()
+        return 1 - (actual_occupation / individual_sum)
+
+        #return individual_sum / actual_occupation
+
+
 
     def compute_done(self) -> bool:
         return self.current_step >= self.max_steps
@@ -201,10 +209,11 @@ class AirspaceEnv(gym.Env):
         self.current_step += 1
         
         # 1) clear dynamic layer
-        self.airspace_grid.reset()
+        self.airspace_grid.clear_grid()
 
         # 2) apply new rotations (intrinsic)
-        denormalized_rotations = self.denormalize_action(norm_rotations)
+        denormalized_rotations: Dict[int, float] = self.denormalize_action(
+            norm_rotations)
         self._set_rotations(denormalized_rotations)
 
         # 3) stamp + metrics
@@ -243,20 +252,21 @@ if __name__ == "__main__":
     print("reset env")
     observation, info = env.reset()
 
-    print("initial observation:", observation)
+
     for _ in range(1):
         action = {}
-        for rid, rotation in observation.items():
-            action[rid] = np.random.uniform(-np.pi, np.pi)  # Random delta for demonstration
+        for rid, _ in observation.items():
+            action[rid] = np.random.uniform(-1, 1)  # Random delta for demonstration
         observation, reward, terminated, _, _ = env.step(norm_rotations=action)
         env.plot_graph()
 
         if terminated:
             break
 
+    print(f"Space saved: {reward * 100:.1f}%")
     pr.disable()
     s = io.StringIO()
     ps = pstats.Stats(pr, stream=s).sort_stats("cumulative")
-    ps.print_stats(50)  # top 50 lines
-    print(s.getvalue())
+    #ps.print_stats(50)  # top 50 lines
+    #print(s.getvalue())
     ps.dump_stats("prof_airspace_env.stats")  # para abrir no Snakeviz

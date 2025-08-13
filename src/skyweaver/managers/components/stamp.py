@@ -1,10 +1,12 @@
+from affine import Affine
+from shapely.geometry import Polygon
 from functools import cache
 import numpy as np
 from shapely.geometry import Polygon, Point
 from shapely.affinity import rotate as shp_rotate
 from shapely.prepared import prep
 from typing import Tuple, Iterable
-
+from rasterio import features
 
 class Stamp:
     """
@@ -49,7 +51,9 @@ class Stamp:
         does not translate the figure inside the mask.
         Results are cached per (coords_key, cell_size, nx, ny, minx/miny, angle_degree).
         """
-        return Stamp._cached_rasterize(
+
+        self.degree = angle_degree
+        return Stamp._cached_rasterize_rasterio(
             angle_degree,
             self.cell_size,
             self.nx,
@@ -97,3 +101,35 @@ class Stamp:
             mask[iy, inside] = 1
 
         return mask
+    
+    @staticmethod
+    @cache
+    def _cached_rasterize_rasterio(angle_degree, cell_size, nx, ny, minx, miny, coords_key):
+        # Rebuild & rotate polygon
+        poly0 = Polygon(coords_key)
+        poly_rot = shp_rotate(poly0, angle_degree,
+                            origin=(0.0, 0.0), use_radians=False)
+
+        # Define transform for rasterio
+        transform = Affine(cell_size, 0, minx,
+                        0, -cell_size, miny + ny * cell_size)
+
+        # Rasterize directly
+        mask = features.rasterize(
+            [(poly_rot, 1)],
+            out_shape=(ny, nx),
+            transform=transform,
+            fill=0,
+            all_touched=False,  # ou True se quiser incluir células tocadas pela borda
+            dtype='uint8'
+        )
+
+        return mask
+
+    def occupation_in_cells(self) -> int:
+        """
+        Return the number of cells occupied by the polygon in the grid.
+        """
+        mask = self.rotated_mask(
+            self.degree)  # Get the mask for the original orientation
+        return np.count_nonzero(mask)

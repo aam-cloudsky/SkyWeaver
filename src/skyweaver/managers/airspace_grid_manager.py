@@ -15,8 +15,6 @@ from skyweaver.enums.restriction_source import RestrictionSource
 from skyweaver.enums.shapes import RestrictionShape
 import matplotlib.pyplot as plt
 
-import rastreio
-
 class AirspaceGrid:
     """
     AirspaceGrid generates a spatial grid (channels-first np.ndarray) over a given map.
@@ -122,9 +120,12 @@ class AirspaceGrid:
         grid = np.zeros((len(GridChannels), n_rows, n_cols), dtype=bool)
 
         return grid
+    
+    def get_restriction_mask(self) -> np.ndarray:
+        return self.grid[GridChannels.RESTRICTION.value]
 
     def init_grid(self):
-        self.grid = self._create_grid(cell_size=self.cell_size)
+        self.grid: np.ndarray = self._create_grid(cell_size=self.cell_size)
         self._init_layers()
 
     def _init_layers(self):
@@ -145,9 +146,10 @@ class AirspaceGrid:
         if not self.restrictions:
             return
 
-        start_time = time.perf_counter()
-        elapsed_times = []
+
+
         for rid, restriction in self.restrictions.items():
+            start_time = time.perf_counter()
             mask = restriction.to_cell_mask(self.cell_size)  # (h, w)
             h, w = mask.shape
 
@@ -173,12 +175,6 @@ class AirspaceGrid:
                 submask = mask[i0:i1, j0:j1]
                 # aplica como OR
                 self.grid[channel, g_top : g_top + submask.shape[0], g_left : g_left + submask.shape[1]] |= submask.astype(bool)
-
-            end_time = time.perf_counter()
-            elapsed_time = end_time - start_time
-            elapsed_times.append(elapsed_time)
-            print(f"Restriction {rid} loaded. Elapsed time: {elapsed_time:.4f} seconds. Predicted: {len(self.restrictions) * np.mean(elapsed_times):.4f} seconds total.")
-
 
     def get_restriction_rotation(self, restriction_id: int) -> Optional[float]:
         r = self.restrictions.get(restriction_id)
@@ -209,23 +205,10 @@ class AirspaceGrid:
     def rotate_restrictions(self, id_radians: Dict[int, float]):
         """
         updates restriction angles based on restrinction ids. angle must be in radians"""
-        print(f"[air space grid manager] Rotating restrictions: {id_radians}")
+
         for id, radian in id_radians.items():
 
             self.restrictions[id].rotation = radian
-
-
-    def compute_free_space_pct(self) -> float:
-        """
-        Fraction of free airspace over the ENTIRE grid (for quick dashboards).
-        Prefer absolute metrics (cells/area) for sensitivity analyses.
-        """
-        rest = self.grid[GridChannels.RESTRICTION.value]
-        total_cells = rest.size
-        if total_cells == 0:
-            return 1.0
-        restricted = np.count_nonzero(rest)
-        return 1.0 - (restricted / total_cells)
 
     def get_cycle_metrics(self) -> Dict[str, float]:
         """
@@ -275,6 +258,13 @@ class AirspaceGrid:
             self.rotate_restrictions({rid: 0.0})
             self.restrictions[rid].rotation = 0.0
 
+    def clear_grid(self):
+        """
+        Clear only the restriction layer, keeping the current rotations.
+        """
+        self.grid[GridChannels.RESTRICTION.value, :, :] = False
+
+
     def plot_graph(self):
   
         fig, axes = plt.subplots(1, 2, figsize=(10, 5))
@@ -292,21 +282,38 @@ class AirspaceGrid:
         plt.tight_layout()
         plt.show()
 
-    def compute_restricted_cells(self) -> int:
+    def compute_free_space_pct(self) -> float:
         """
-        Return the absolute number of restricted cells over the entire grid.
+        Computes the fraction of free cells in the entire grid.
         """
         rest = self.grid[GridChannels.RESTRICTION.value]
-        return int(np.count_nonzero(rest))
+        total_cells = rest.size
+        if total_cells == 0:
+            return 1.0
+        restricted = np.count_nonzero(rest)
+        return 1.0 - (restricted / total_cells)
 
-    def compute_restricted_area_m2(self) -> float:
+
+    def compute_actual_occupation(self) -> int:
         """
-        Return the restricted area in square meters, i.e., restricted_cells * (cell_size^2).
+        Returns the number of cells currently occupied in the restriction layer.
+        Overlaps count only once.
         """
-        return float(self.compute_restricted_cells() * (self.cell_size ** 2))
+        return int(np.count_nonzero(self.grid[GridChannels.RESTRICTION.value]))
 
 
-        
+    def compute_individual_sum(self) -> int:
+        """
+        Computes the sum of the individual occupation of each restriction,
+        ignoring overlaps. This is done by stamping each restriction alone.
+        """
+        total = 0
+        for restriction in self.restrictions.values():
+            total += restriction.occupation_in_cells(self.cell_size)
+        return total
+
+
+
 if __name__ == "__main__":
     """
     Teste local rápido:

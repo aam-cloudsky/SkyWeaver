@@ -15,7 +15,9 @@ dependencies = [
     "shapely (>=2.1.1,<3.0.0)",
     "gymnasium (>=1.2.0,<2.0.0)",
     "matplotlib (>=3.10.5,<4.0.0)",
-    "rastreio (>=0.0.3,<0.0.4)"
+    "rastreio (>=0.0.3,<0.0.4)",
+    "rasterio (>=1.4.3,<2.0.0)",
+    "pyswarm (>=0.6,<0.7)"
 ]
 
 
