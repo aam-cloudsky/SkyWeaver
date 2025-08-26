@@ -14,6 +14,8 @@ from math import atan2, cos, sin
 from skyweaver.enums.restriction_source import RestrictionSource
 from skyweaver.enums.shapes import RestrictionShape
 import matplotlib.pyplot as plt
+from shapely.geometry import box
+import geopandas as gpd
 
 class AirspaceGrid:
     """
@@ -24,7 +26,7 @@ class AirspaceGrid:
         self,
         source_map: gpd.GeoDataFrame,
         cell_size: float = 500.0,  # metros por célula
-        grid_crs: str = "EPSG:31983",  # ver nota sobre CRS abaixo
+        
     ):
         """
         Initializes the airspace grid.
@@ -34,6 +36,7 @@ class AirspaceGrid:
             cell_size: Size of each cell in meters.
             grid_crs: Projected CRS em metros (ex.: UTM).
         """
+        grid_crs: str = "EPSG:31983"  # ver nota sobre CRS abaixo
         self.crs: str = grid_crs
         self.source_map: gpd.GeoDataFrame = source_map.to_crs(self.crs)
         self.cell_size = cell_size
@@ -55,6 +58,41 @@ class AirspaceGrid:
 
         # transformer 4326->grid (para pontos em lat/lon)
         self._t_4326_to_grid = Transformer.from_crs("EPSG:4326", self.crs, always_xy=True)
+
+    def to_geodataframes(self) -> Dict[str, gpd.GeoDataFrame]:
+        """
+        Export each grid layer as a separate GeoDataFrame.
+        Returns a dict {layer_name: GeoDataFrame}.
+        """
+        
+
+        #crs = "EPSG:4326"  # WGS84 em graus
+        minx, miny, maxx, maxy = self.source_map.total_bounds
+        n_rows, n_cols = self.grid.shape[1], self.grid.shape[2]
+
+        geodfs = {}
+
+        for channel in GridChannels:
+            mask = self.grid[channel.value]
+            geometries = []
+            values = []
+
+            for i in range(n_rows):
+                for j in range(n_cols):
+                    if mask[i, j]:  # só exporta as células ativas
+                        cell_minx = minx + j * self.cell_size
+                        cell_miny = miny + i * self.cell_size
+                        cell_maxx = cell_minx + self.cell_size
+                        cell_maxy = cell_miny + self.cell_size
+                        geometries.append(
+                            box(cell_minx, cell_miny, cell_maxx, cell_maxy))
+                        values.append(1)
+            if len(geometries) == 0:
+                continue
+
+            geodfs[channel.name] = gpd.GeoDataFrame(
+                geometry=geometries, crs=self.crs)
+        return geodfs
 
     # ======== Restriction bookkeeping ========
 
@@ -144,14 +182,18 @@ class AirspaceGrid:
         Applies all registered restriction masks to the grid.
         """
         if not self.restrictions:
+            print("[DEBUG] No restrictions to apply.")
             return
 
-
+        #print(f"[DEBUG] Applying {len(self.restrictions)} restrictions.")
 
         for rid, restriction in self.restrictions.items():
-            start_time = time.perf_counter()
+            #start_time = time.perf_counter()
             mask = restriction.to_cell_mask(self.cell_size)  # (h, w)
             h, w = mask.shape
+
+            
+
 
             cell = self.point_to_cell(restriction.location)
             if cell is None:
@@ -162,6 +204,9 @@ class AirspaceGrid:
             top = row - h // 2
             left = col - w // 2
             channel = GridChannels.RESTRICTION.value
+
+            print(f"[DEBUG] Restriction {rid}: mask shape={mask.shape}, "
+                  f"grid pos=({row}, {col}), top={top}, left={left}")
 
             # recorte dentro dos limites
             i0 = max(0, -top)
@@ -325,37 +370,37 @@ if __name__ == "__main__":
 
     # 1) mapa retangular simples no CRS do grid (por ex. UTM 23S, metros)
     #    Aqui: um retângulo 10km x 8km
-    grid_crs = "EPSG:31983"
+    #grid_crs = "EPSG:31983"
     rect = Polygon([(0, 0), (10_000, 0), (10_000, 8_000), (0, 8_000)])
-    gdf = gpd.GeoDataFrame(geometry=[rect], crs=grid_crs)
+    gdf = gpd.GeoDataFrame(geometry=[rect], crs="EPSG:31983")
 
-    mgr = AirspaceGrid(gdf, cell_size=20.0, grid_crs=grid_crs)
+    mgr = AirspaceGrid(gdf, cell_size=20.0)
 
     # 2) adiciona restrições – duas no CRS do grid e uma em lat/lon (exemplo fictício)
     #    (se você tiver lat/lon reais, troque location_epsg="EPSG:4326" e passe lon,lat)
 
-
+    # TODO: FORÇAR O USO DO "EPSG:31983".
     r1 = mgr.add_restriction(
         shape=RestrictionShape.DISK,
         radius=1200,
         location=Point(2500, 2500),
         source=RestrictionSource.HELIPORT,
         rotation=0.0,
-        location_epsg=grid_crs,
+        location_epsg="EPSG:31983",
     )
     r2 = mgr.add_restriction(
         shape=RestrictionShape.CIRCULAR_SECTOR,
         radius=800,
         location=Point(7500, 3000),
         source=RestrictionSource.HELIPORT,
-        location_epsg=grid_crs,
+        location_epsg="EPSG:31983",
     )
     r3 = mgr.add_restriction(
         shape=RestrictionShape.CIRCULAR_SECTOR, #square not working
         radius=1000,
         location=Point(8000, 3000),
         source=RestrictionSource.UNKNOWN,
-        location_epsg=grid_crs,
+        location_epsg="EPSG:31983",
         rotation=np.pi
     )
 

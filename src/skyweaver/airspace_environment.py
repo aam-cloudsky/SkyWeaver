@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 import math
+import os
+import threading
 import time
 import numpy as np
 import gymnasium as gym
@@ -21,7 +23,7 @@ from skyweaver.enums.restriction_source import RestrictionSource
 from skyweaver.enums.grid_channels import GridChannels
 from skyweaver.paths import prepare_data_path, change_to_project_root
 
-
+from skyweaver.grid_streaming import GridStreaming
 
 class AirspaceEnv(gym.Env):
     """
@@ -68,9 +70,17 @@ class AirspaceEnv(gym.Env):
         self.airspace_grid = AirspaceGrid(source_map=source_map, cell_size=self.cell_size)
         restrictions_geojson = self.geojson_manager.read_geojson(self.restrictions_geojson_path, use_cache=True)
 
+        self.setup_threading()
         self._load_restrictions_from_geojson(restrictions_geojson)
+        self.streamer = GridStreaming(interval=0.5)
+
+    def setup_threading(self):
+        self._export_lock = threading.Lock()
+        self._export_enabled = True
+
 
     
+
     def _load_restrictions_from_geojson(self, gdf_restr):
         """
         Load restrictions from a GeoDataFrame WITHOUT forcing CRS relabeling.
@@ -125,9 +135,12 @@ class AirspaceEnv(gym.Env):
             # Store raw radians internally; we'll normalize in compute_observation().
             self._restriction_ids[rid] = rotation_val
 
+            #TODO: REMOVER LINHA ABAIXO
+            #break #adicionado para ver o debug para 1 restrição
 
 
-        
+
+   
 
     def reset(self, seed: Optional[int] = None):
         self.seed = seed
@@ -137,6 +150,10 @@ class AirspaceEnv(gym.Env):
 
         observation = self.compute_observation()
         info = {}
+
+        self.streamer.start(self.airspace_grid.grid)
+        
+        
 
         return observation, info
 
@@ -222,11 +239,65 @@ class AirspaceEnv(gym.Env):
         observation = self.compute_observation()
         reward = self.compute_reward()
         terminated = self.compute_done()
+
+        self.streamer.trigger_update()
+        time.sleep(0.1)  # dá um tempinho para o streamer atualizar
+
         return observation, reward, terminated, False, {}
 
     
     def plot_graph(self):
         self.airspace_grid.plot_graph()
+
+    def export_grid_to_geojson(self, path: str):
+        """Export grid layers to GeoJSON asynchronously with lock."""
+
+        def _worker():
+            try:
+                # garante que o diretório existe
+                os.makedirs(path, exist_ok=True)
+
+                geo_dfs = self.airspace_grid.to_geodataframes()
+                for layer_name, gdf in geo_dfs.items():
+                    output_path = os.path.join(path, f"{layer_name}.geojson")
+                    gdf.to_file(output_path, driver="GeoJSON")
+
+                #print(f"[export] Grid successfully exported to '{path}/'.")
+            except Exception as e:
+                print(f"[export] Error: {e}")
+            finally:
+                # destrava no fim, sucesso ou falha
+                self._export_lock.release()
+
+        if not self._export_lock.locked():
+            self._export_lock.acquire()
+            t = threading.Thread(target=_worker, daemon=True)
+            t.start()
+
+    def export_grid_to_geopackage(self, path: str, filename: str = "airspace_layers.gpkg"):
+        """Export grid layers to GeoPackage asynchronously with lock."""
+
+        def _worker():
+            try:
+                os.makedirs(path, exist_ok=True)
+
+                geo_dfs = self.airspace_grid.to_geodataframes()
+                gpkg_path = os.path.join(path, filename)
+
+                # Para cada camada, salva dentro do mesmo .gpkg
+                for layer_name, gdf in geo_dfs.items():
+                    gdf.to_file(gpkg_path, layer=layer_name, driver="GPKG")
+
+                #print(f"[export] Grid successfully exported to '{gpkg_path}'.")
+            except Exception as e:
+                print(f"[export] Error: {e}")
+            finally:
+                self._export_lock.release()
+
+        if not self._export_lock.locked():
+            self._export_lock.acquire()
+            t = threading.Thread(target=_worker, daemon=True)
+            t.start()
 
     
 if __name__ == "__main__":

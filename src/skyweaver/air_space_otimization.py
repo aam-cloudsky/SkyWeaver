@@ -31,9 +31,10 @@ def objective(x):
     Converte vetor numpy -> dict esperado pelo env.step()
     Retorna negativo do reward, pois o scipy.optimize minimiza.
     """
-    env.reset()
     action = {rid: float(val) for rid, val in zip(obs.keys(), x)}
     _, reward, _, _, _ = env.step(action)
+    if env.current_step % 100 == 0:
+        env.export_grid_to_geopackage(path="air_space_optimization_output")
     return -reward  # invertendo para maximizar reward
 
 
