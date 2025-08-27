@@ -4,9 +4,23 @@ from functools import cache
 import numpy as np
 from shapely.geometry import Polygon, Point
 from shapely.affinity import rotate as shp_rotate
+from shapely.affinity import translate as shp_translate
 from shapely.prepared import prep
 from typing import Tuple, Iterable
 from rasterio import features
+#from skyweaver.managers.components.stamp import Stamp
+from functools import cache
+from shapely import Point, Polygon
+
+import matplotlib.pyplot as plt
+from dataclasses import dataclass
+from typing import List, Tuple
+
+from skyweaver.data_models.restriction import Restriction
+from skyweaver.enums.shapes import RestrictionShape
+
+
+
 
 class Stamp:
     """
@@ -17,119 +31,165 @@ class Stamp:
     the figure stays centered in the array for every angle.
     """
 
-    def __init__(self, poly: Polygon, cell_size: float):
-        # Expect a local polygon centered at (0,0)
-        self.poly0: Polygon = poly
-        self.cell_size: float = float(cell_size)
+    
+    
+    #=================================================================================
+    # Polygon Generation
+    #=================================================================================
 
-        # --- build a fixed, square support around origin ---
-        # Maximum radius from origin to any exterior vertex
-        coords = np.asarray(self.poly0.exterior.coords, dtype=float)
-        rmax = np.sqrt((coords[:, 0] ** 2) + (coords[:, 1] ** 2)).max()
-
-        # half-size in number of cells, add 1 cell margin
-        half_cells = int(np.ceil(rmax / self.cell_size)) + 1
-
-        # make grid size odd so the origin lies at the center of 4 pixels (rotation-friendly)
-        self.nx = self.ny = 2 * half_cells + 1
-        self.minx = -half_cells * self.cell_size
-        self.miny = -half_cells * self.cell_size
-
-        # cache key for the base polygon geometry (rotation is an argument later)
-        # use a rounded tuple of coords to make it stable/hashable
-        self._coords_key: Tuple[Tuple[float, float], ...] = tuple(
-            (float(round(x, 6)), float(round(y, 6))) for x, y in self.poly0.exterior.coords
-        )
-
-    # -------------------------------
-    # public API
-    # -------------------------------
-    def rotated_mask(self, angle_degree: int) -> np.ndarray:
-        """
-        Return a binary mask (ny, nx) for the polygon rotated by angle_degree.
-        The support grid is fixed and centered at the origin, so the rotation
-        does not translate the figure inside the mask.
-        Results are cached per (coords_key, cell_size, nx, ny, minx/miny, angle_degree).
-        """
-
-        self.degree = angle_degree
-        return Stamp._cached_rasterize_rasterio(
-            angle_degree,
-            self.cell_size,
-            self.nx,
-            self.ny,
-            self.minx,
-            self.miny,
-            self._coords_key,
-        )
-
-    # -------------------------------
-    # cached core
-    # -------------------------------
     @staticmethod
     @cache
-    def _cached_rasterize(angle_degree: int,
-                          cell_size: float,
-                          nx: int, ny: int,
-                          minx: float, miny: float,
-                          coords_key: Tuple[Tuple[float, float], ...]) -> np.ndarray:
+    def _retrieve_polygon(shape: RestrictionShape, radius: int) -> Polygon:
         """
-        Cached rasterization using Shapely:
-        - Rebuild polygon from coords_key
-        - Rotate around (0,0) by angle_degree (degrees)
-        - For each cell center, test contains() on the prepared geometry
-        - Return uint8 mask (1 inside, 0 outside)
+        Returns the polygon representation of the restriction shape.
         """
-        # rebuild & rotate
-        poly0 = Polygon(coords_key)
-        poly_rot = shp_rotate(poly0, angle_degree, origin=(0.0, 0.0), use_radians=False)
-        prepped = prep(poly_rot)
+        if shape == RestrictionShape.DISK:
+            return Stamp._disk_polygon(radius=radius)
+        elif shape == RestrictionShape.RECTANGLE:
+            return Stamp._rectangle_polygon(radius=radius)
+        elif shape == RestrictionShape.CIRCULAR_SECTOR:
+            return Stamp._circular_sector_polygon(radius=radius)
+        else:
+            raise ValueError(f"Unsupported shape: {shape.name}")
 
-        # cell-center coordinates
-        xs = minx + (np.arange(nx) + 0.5) * cell_size
-        ys = miny + (np.arange(ny) + 0.5) * cell_size
 
-        mask = np.zeros((ny, nx), dtype=np.uint8)
 
-        # Row-wise point tests (keeps Point() creations moderate)
-        # Typical grids (e.g., radius ~2 km, cell 50 m) => ~81x81 points
-        for iy, y in enumerate(ys):
-            # build all points in this row
-            row_points = [Point(x, y) for x in xs]
-            inside = np.fromiter((prepped.contains(pt) for pt in row_points),
-                                 dtype=bool, count=nx)
-            mask[iy, inside] = 1
+    @staticmethod
+    @cache
+    def _disk_polygon(radius: int) -> Polygon:
+        """
+        Returns a circular polygon with the specified radius.
+        """
+        return Point(0, 0).buffer(radius, resolution=32)
 
-        return mask
+    @staticmethod
+    @cache
+    def _rectangle_polygon(radius: int) -> Polygon:
+        # radius is diagonal length, so half side is radius / sqrt(2)
+        half_side = radius / np.sqrt(2)
+        return Polygon(
+            [
+                (-half_side, -half_side),
+                (+half_side, -half_side),
+                (+half_side, +half_side),
+                (-half_side, +half_side),
+            ]
+        )
+
+    @staticmethod
+    @cache
+    def _circular_sector_polygon(
+        radius: int, angle_rad: float = (2 / 3) * np.pi
+    ) -> Polygon:
+        """
+        Return a triangular polygon that approximates the circular sector.
+
+        - Height: self.radius
+        - Angle: angle_rad (default 120 degrees)
+        """
+
+        # ponto do vértice (no centro)
+        apex = (0.0, 0.0)
+
+        # ângulos para os dois cantos da base
+        half_angle = angle_rad / 2.0
+
+        # coordenadas dos vértices da base (distância = raio)
+        p1 = (
+            radius * np.cos(half_angle),
+            radius * np.sin(half_angle),
+        )
+        p2 = (
+            radius * np.cos(-half_angle),
+            radius * np.sin(-half_angle),
+        )
+
+        # triângulo formado: ápice + dois pontos da base
+        return Polygon([apex, p1, p2])
     
     @staticmethod
     @cache
-    def _cached_rasterize_rasterio(angle_degree, cell_size, nx, ny, minx, miny, coords_key):
-        # Rebuild & rotate polygon
-        poly0 = Polygon(coords_key)
-        poly_rot = shp_rotate(poly0, angle_degree,
-                            origin=(0.0, 0.0), use_radians=False)
+    def _rotated_polygon_degree(shape: RestrictionShape, radius: int, degree: int) -> Polygon:
+        base = Stamp._retrieve_polygon(shape, radius)
+        return shp_rotate(base, degree, origin=(0.0, 0.0), use_radians=False)
+    
+    #=================================================================================
+    # Rasterization
+    #=================================================================================
+
+    @staticmethod
+    @cache
+    def _grid_signature(shape: RestrictionShape, radius: int, cell_size: int):
+        poly = Stamp._retrieve_polygon(shape, radius)
+        coords = np.asarray(poly.exterior.coords, dtype=float)
+        rmax = np.sqrt((coords[:, 0] ** 2) + (coords[:, 1] ** 2)).max()
+        half_cells = int(np.ceil(rmax / cell_size)) + 1
+        nx = ny = 2 * half_cells + 1
+        minx = -half_cells * cell_size
+        miny = -half_cells * cell_size
+        return nx, ny, minx, miny
+
+    
+    @cache
+    @staticmethod
+    def _to_cell_mask(geometry_signature: Tuple, cell_size: int):
+        shape, radius, degree = geometry_signature
+
+        rotated_polygon = Stamp._rotated_polygon_degree(shape, radius, degree)
+        nx, ny, minx, miny = Stamp._grid_signature(shape, radius, cell_size)
+
 
         # Define transform for rasterio
-        transform = Affine(cell_size, 0, minx,
-                        0, -cell_size, miny + ny * cell_size)
+        transform = Affine(cell_size, 0, minx, 0, -cell_size, miny + ny * cell_size)
 
         # Rasterize directly
         mask = features.rasterize(
-            [(poly_rot, 1)],
+            [(rotated_polygon, 1)],
             out_shape=(ny, nx),
             transform=transform,
             fill=0,
-            all_touched=False,  # ou True se quiser incluir células tocadas pela borda
+            all_touched=False, 
             dtype='uint8'
         )
 
         return mask
+    
+    @staticmethod
+    def to_cell_mask(restriction: Restriction, cell_size: int) -> np.ndarray:
+        """
+        Returns the rasterized mask of the restriction at its current rotation.
+        Uses cached Stamp to avoid recomputing the base polygon.
+        """
 
-    def occupation_in_cells(self) -> int:
+        geometry_signature = restriction.geometry_signature
+        return Stamp._to_cell_mask(geometry_signature, cell_size)
+
+    
+    @staticmethod
+    def to_world_polygon(restriction: Restriction) -> Polygon:
         """
-        Return the number of cells occupied by the polygon in the grid.
+        Return the restriction polygon in world coordinates:
+        - Starts from the cached local polygon (centered at 0,0).
+        - Applies exact rotation (in radians).
+        - Translates to restriction.location.
         """
-        mask = self.rotated_mask(
-            self.degree)  # Get the mask for the original orientation
-        return np.count_nonzero(mask)
+        polygon = Stamp._retrieve_polygon(restriction.shape, restriction.radius)
+        rotated = shp_rotate(polygon, restriction.rotation, origin=(0.0, 0.0), use_radians=True)
+        return shp_translate(rotated, xoff=restriction.location.x, yoff=restriction.location.y)
+
+
+
+    #=================================================================================
+    # Metrics
+    #=================================================================================
+
+    @staticmethod
+    def occupation_in_cells(restriction: Restriction, cell_size: int) -> int:
+        """
+        Returns the number of occupied cells.
+        """
+
+        mask = Stamp.to_cell_mask(restriction, cell_size)
+        return int(np.count_nonzero(mask))
+
+    

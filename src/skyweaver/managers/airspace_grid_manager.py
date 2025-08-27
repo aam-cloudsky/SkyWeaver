@@ -17,6 +17,17 @@ import matplotlib.pyplot as plt
 from shapely.geometry import box
 import geopandas as gpd
 
+from skyweaver.managers.components.stamp import Stamp
+
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    message="Starting a Matplotlib GUI outside of the main thread will likely fail",
+    category=UserWarning
+)
+
+
+
 class AirspaceGrid:
     """
     AirspaceGrid generates a spatial grid (channels-first np.ndarray) over a given map.
@@ -25,8 +36,8 @@ class AirspaceGrid:
     def __init__(
         self,
         source_map: gpd.GeoDataFrame,
-        cell_size: float = 500.0,  # metros por célula
-        
+        cell_size: int = 500,  # metros por célula
+
     ):
         """
         Initializes the airspace grid.
@@ -58,12 +69,12 @@ class AirspaceGrid:
 
         # transformer 4326->grid (para pontos em lat/lon)
         self._t_4326_to_grid = Transformer.from_crs("EPSG:4326", self.crs, always_xy=True)
-
+    """
     def to_geodataframes(self) -> Dict[str, gpd.GeoDataFrame]:
-        """
-        Export each grid layer as a separate GeoDataFrame.
-        Returns a dict {layer_name: GeoDataFrame}.
-        """
+        
+        #Export each grid layer as a separate GeoDataFrame.
+        #Returns a dict {layer_name: GeoDataFrame}.
+        
         
 
         #crs = "EPSG:4326"  # WGS84 em graus
@@ -91,9 +102,9 @@ class AirspaceGrid:
                 continue
 
             geodfs[channel.name] = gpd.GeoDataFrame(
-                geometry=geometries, crs=self.crs)
+                geometry=geometries, crs=None)
         return geodfs
-
+    """
     # ======== Restriction bookkeeping ========
 
     def _next_id(self) -> int:
@@ -189,11 +200,12 @@ class AirspaceGrid:
 
         for rid, restriction in self.restrictions.items():
             #start_time = time.perf_counter()
-            mask = restriction.to_cell_mask(self.cell_size)  # (h, w)
+            Stamp.to_cell_mask(restriction, self.cell_size)
+            mask = Stamp.to_cell_mask(restriction, self.cell_size)  # (h, w)
             h, w = mask.shape
 
-            
-
+            # Debugging output
+            # print(f"[DEBUG] Restriction {rid}: mask shape={mask.shape}")
 
             cell = self.point_to_cell(restriction.location)
             if cell is None:
@@ -205,8 +217,8 @@ class AirspaceGrid:
             left = col - w // 2
             channel = GridChannels.RESTRICTION.value
 
-            print(f"[DEBUG] Restriction {rid}: mask shape={mask.shape}, "
-                  f"grid pos=({row}, {col}), top={top}, left={left}")
+            #print(f"[DEBUG] Restriction {rid}: mask shape={mask.shape}, "
+            #      f"grid pos=({row}, {col}), top={top}, left={left}")
 
             # recorte dentro dos limites
             i0 = max(0, -top)
@@ -274,17 +286,6 @@ class AirspaceGrid:
     
     # ======== Utils ========
 
-    def to_geodataframe(self) -> Optional[gpd.GeoDataFrame]:
-        # (Placeholder — você pode expandir para exportar geometrias das células)
-        if self.grid is None:
-            return None
-        return gpd.GeoDataFrame(
-            {
-                "valid": self.grid[GridChannels.CITY_MASK.value].ravel(),
-                "restricted": self.grid[GridChannels.RESTRICTION.value].ravel(),
-            }
-        )
-
     def point_to_cell(self, point: Point) -> Optional[Tuple[int, int]]:
         minx, miny, _, _ = self.source_map.total_bounds
         col = int((point.x - minx) // self.cell_size)
@@ -326,6 +327,7 @@ class AirspaceGrid:
             ax.set_ylabel("row")
         plt.tight_layout()
         plt.show()
+        #plt.pause(0.001)
 
     def compute_free_space_pct(self) -> float:
         """
@@ -354,10 +356,26 @@ class AirspaceGrid:
         """
         total = 0
         for restriction in self.restrictions.values():
-            total += restriction.occupation_in_cells(self.cell_size)
+            total += Stamp.occupation_in_cells(restriction, self.cell_size)
         return total
 
 
+    def polygons(self):
+        return [Stamp.to_world_polygon(r) for r in self.restrictions.values()]
+    
+    def to_geodataframe(self) -> gpd.GeoDataFrame:
+        data = [
+            {
+                "id": r.id,
+                "shape": r.shape.name,
+                "radius": r.radius,
+                "source": r.source.name,
+                "rotation": r.rotation,
+                "geometry": Stamp.to_world_polygon(r),
+            }
+            for r in self.restrictions.values()
+        ]
+        return gpd.GeoDataFrame(data, geometry="geometry", crs="EPSG:31983") #EPSG Meters
 
 if __name__ == "__main__":
     """
@@ -374,7 +392,7 @@ if __name__ == "__main__":
     rect = Polygon([(0, 0), (10_000, 0), (10_000, 8_000), (0, 8_000)])
     gdf = gpd.GeoDataFrame(geometry=[rect], crs="EPSG:31983")
 
-    mgr = AirspaceGrid(gdf, cell_size=20.0)
+    mgr = AirspaceGrid(gdf, cell_size=20)
 
     # 2) adiciona restrições – duas no CRS do grid e uma em lat/lon (exemplo fictício)
     #    (se você tiver lat/lon reais, troque location_epsg="EPSG:4326" e passe lon,lat)

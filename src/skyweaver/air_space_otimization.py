@@ -15,7 +15,8 @@ heliport_path = prepare_data_path("geojson", "heliport.geojson")
 env = AirspaceEnv(
     city_geojson_path=str(grid_path),
     restrictions_geojson_path=str(heliport_path),
-    cell_size=50
+    cell_size=50,
+    GUI=True
 )
 
 obs, _ = env.reset()
@@ -34,7 +35,9 @@ def objective(x):
     action = {rid: float(val) for rid, val in zip(obs.keys(), x)}
     _, reward, _, _, _ = env.step(action)
     if env.current_step % 100 == 0:
+        #pass
         env.export_grid_to_geopackage(path="air_space_optimization_output")
+        #TODO: Polygons in QGIS are broken
     return -reward  # invertendo para maximizar reward
 
 

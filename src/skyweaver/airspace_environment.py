@@ -54,8 +54,9 @@ class AirspaceEnv(gym.Env):
         self,
         city_geojson_path: str,
         restrictions_geojson_path: str,
-        cell_size: float = 50.0,
+        cell_size: int = 50,
         max_steps: int = 500_000,
+        GUI: bool = False
     ) -> None:
         super().__init__()
 
@@ -70,9 +71,14 @@ class AirspaceEnv(gym.Env):
         self.airspace_grid = AirspaceGrid(source_map=source_map, cell_size=self.cell_size)
         restrictions_geojson = self.geojson_manager.read_geojson(self.restrictions_geojson_path, use_cache=True)
 
-        self.setup_threading()
+        
         self._load_restrictions_from_geojson(restrictions_geojson)
-        self.streamer = GridStreaming(interval=0.5)
+        self.GUI = GUI
+
+        if self.GUI:
+            self.streamer = GridStreaming(interval=0.5)
+        
+        self.setup_threading()
 
     def setup_threading(self):
         self._export_lock = threading.Lock()
@@ -151,9 +157,8 @@ class AirspaceEnv(gym.Env):
         observation = self.compute_observation()
         info = {}
 
-        self.streamer.start(self.airspace_grid.grid)
-        
-        
+        if self.GUI:
+            self.streamer.start(self.airspace_grid.grid)
 
         return observation, info
 
@@ -240,8 +245,9 @@ class AirspaceEnv(gym.Env):
         reward = self.compute_reward()
         terminated = self.compute_done()
 
-        self.streamer.trigger_update()
-        time.sleep(0.1)  # dá um tempinho para o streamer atualizar
+        if self.GUI:
+            self.streamer.trigger_update()
+            time.sleep(0.1)  # dá um tempinho para o streamer atualizar
 
         return observation, reward, terminated, False, {}
 
@@ -249,15 +255,16 @@ class AirspaceEnv(gym.Env):
     def plot_graph(self):
         self.airspace_grid.plot_graph()
 
+    #TODO: RETORNAR AS CAMADAS
     def export_grid_to_geojson(self, path: str):
         """Export grid layers to GeoJSON asynchronously with lock."""
-
+        print("[DEBUG] Not working properly. to_geodataframe must return a dictionary of layers")
         def _worker():
             try:
                 # garante que o diretório existe
                 os.makedirs(path, exist_ok=True)
 
-                geo_dfs = self.airspace_grid.to_geodataframes()
+                geo_dfs = self.airspace_grid.to_geodataframe()
                 for layer_name, gdf in geo_dfs.items():
                     output_path = os.path.join(path, f"{layer_name}.geojson")
                     gdf.to_file(output_path, driver="GeoJSON")
@@ -274,6 +281,7 @@ class AirspaceEnv(gym.Env):
             t = threading.Thread(target=_worker, daemon=True)
             t.start()
 
+
     def export_grid_to_geopackage(self, path: str, filename: str = "airspace_layers.gpkg"):
         """Export grid layers to GeoPackage asynchronously with lock."""
 
@@ -281,7 +289,7 @@ class AirspaceEnv(gym.Env):
             try:
                 os.makedirs(path, exist_ok=True)
 
-                geo_dfs = self.airspace_grid.to_geodataframes()
+                geo_dfs = self.airspace_grid.to_geodataframe()
                 gpkg_path = os.path.join(path, filename)
 
                 # Para cada camada, salva dentro do mesmo .gpkg
