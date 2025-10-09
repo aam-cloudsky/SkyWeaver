@@ -5,10 +5,10 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from skyweaver.scenarios.distributions.components.configuration import DistributionConfiguration
+from skyweaver.scenarios.components.distributions.configuration import DistributionConfiguration
 
 
-class Distribution(ABC):
+class BaseDistribution(ABC):
     def __init__(self, config: DistributionConfiguration, rng: np.random.Generator):
         self._config: DistributionConfiguration = config
         self._rng = rng

@@ -2,12 +2,12 @@
 from typing import Optional
 import numpy as np
 
-from skyweaver.scenarios.distributions.components.configuration import DistributionConfiguration
-from skyweaver.scenarios.distributions.components.point import Point
-from skyweaver.scenarios.distributions.distribution import Distribution
+from skyweaver.scenarios.components.distributions.configuration import DistributionConfiguration
+from skyweaver.core.geometry.point import Point
+from skyweaver.scenarios.components.distributions.base_distribution import BaseDistribution
 
 
-class UAVMAVUAVDistribution(Distribution):
+class UAVMAVUAVDistribution(BaseDistribution):
     """
     Cenário: UAVs nas extremidades (esquerda e direita)
     e MAVs concentrados na região central.

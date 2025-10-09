@@ -2,10 +2,10 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 
-from skyweaver.scenarios.distributions.distribution import Distribution
+from skyweaver.scenarios.components.distributions.base_distribution import BaseDistribution
 
 class BaseScenario:
-    def __init__(self, distribution: Distribution, rng: Optional[np.random.Generator] = None):
+    def __init__(self, distribution: BaseDistribution, rng: Optional[np.random.Generator] = None):
         self.distribution = distribution
         self.rng = rng
         self.reset(rng)

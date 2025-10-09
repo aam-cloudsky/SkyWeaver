@@ -5,7 +5,7 @@ from typing import Optional
 
 import numpy as np
 from skyweaver.scenarios.base_scenario import BaseScenario
-from skyweaver.scenarios.distributions.uav_mav_uav_distribution import UAVMAVUAVDistribution
+from skyweaver.scenarios.components.distributions.uav_mav_uav_distribution import UAVMAVUAVDistribution
 
 
 class UAVMAVUAVScenario(BaseScenario):
