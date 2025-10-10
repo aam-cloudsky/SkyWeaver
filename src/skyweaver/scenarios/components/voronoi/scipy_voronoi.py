@@ -1,5 +1,3 @@
-
-
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import Voronoi, voronoi_plot_2d
@@ -22,8 +20,10 @@ class ScipyVoronoi(BaseVoronoi):
     def fit(self, centroids: List[Point], domain: tuple):
         """Generate Voronoi diagram bounded within the domain."""
         self.centroids = centroids
-        points = np.array([[p.x, p.y] for p in centroids])
-        self.voronoi_ = Voronoi(points)
+        self.points = np.array(
+            [[p.x, p.y] for p in centroids], dtype=np.float32
+        )  # 👈 add this
+        self.voronoi_ = Voronoi(self.points)
 
         # (Optional) Clip the diagram to the domain later
         self._generate_cells(domain)
@@ -38,8 +38,7 @@ class ScipyVoronoi(BaseVoronoi):
 
         # Domain box (for clipping)
         (x_min, x_max), (y_min, y_max) = domain
-        box = np.array([[x_min, y_min], [x_max, y_min],
-                        [x_max, y_max], [x_min, y_max]])
+        box = np.array([[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max]])
 
         for i, region in enumerate(regions):
             polygon = vertices[region]
@@ -50,11 +49,8 @@ class ScipyVoronoi(BaseVoronoi):
 
             label = f"CELL_{i}"
             self.cells_[label] = VoronoiCell(
-                label,
-                self.centroids[i],
-                [Point(x, y) for x, y in polygon]
+                label, self.centroids[i], [Point(x, y) for x, y in polygon]
             )
-
 
     def get_cells(self) -> Dict[str, VoronoiCell]:
         return self.cells_
@@ -62,7 +58,9 @@ class ScipyVoronoi(BaseVoronoi):
 
 if __name__ == "__main__":
     from skyweaver.scenarios.components.cluster.knn_cluster import KNNCluster
-    from skyweaver.scenarios.components.distributions.uav_mav_uav_distribution import UAVMAVUAVDistribution
+    from skyweaver.scenarios.components.distributions.uav_mav_uav_distribution import (
+        UAVMAVUAVDistribution,
+    )
 
     rng = np.random.default_rng(42)
     distribution = UAVMAVUAVDistribution(rng=rng)

@@ -2,15 +2,24 @@
 
 import numpy as np
 from abc import ABC, abstractmethod
-from typing import List, Dict
+from typing import List, Dict, Optional
 from skyweaver.core.geometry.point import Point
 
 import plotly.graph_objects as go
+
 
 class BaseVoronoi(ABC):
     """
     Abstract base class for Voronoi diagram generators.
     """
+
+    def __init__(self):
+        self.points: np.ndarray = np.array([], dtype=float)
+        self.vertices: np.ndarray = np.array([], dtype=float)
+        self.ridge_points: np.ndarray = np.array([], dtype=int)
+        self.ridge_vertices: np.ndarray = np.array([], dtype=int)
+        self.point_region: np.ndarray = np.array([], dtype=int)
+        self.regions: np.ndarray = np.array([], dtype=object)
 
     @abstractmethod
     def fit(self, centroids: List[Point], domain: tuple) -> None:

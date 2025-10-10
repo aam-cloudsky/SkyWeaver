@@ -1,10 +1,13 @@
-
 from typing import Optional
 import numpy as np
 
-from skyweaver.scenarios.components.distributions.configuration import DistributionConfiguration
+from skyweaver.scenarios.components.distributions.configuration import (
+    DistributionConfiguration,
+)
 from skyweaver.core.geometry.point import Point
-from skyweaver.scenarios.components.distributions.base_distribution import BaseDistribution
+from skyweaver.scenarios.components.distributions.base_distribution import (
+    BaseDistribution,
+)
 
 
 class UAVMAVUAVDistribution(BaseDistribution):
@@ -28,7 +31,7 @@ class UAVMAVUAVDistribution(BaseDistribution):
         self._domain = domain
         self._center_fraction = center_fraction
         self._rng = rng
-        
+
         _config = self._setup_config(n_uav, n_mav, domain, center_fraction, rng)
         super().__init__(config=_config, rng=rng)
 
@@ -40,8 +43,9 @@ class UAVMAVUAVDistribution(BaseDistribution):
             self._n_uav, self._n_mav, self._domain, self._center_fraction, self._rng
         )
 
-
-    def _setup_config(self, _n_uav, _n_mav, _domain, _center_fraction, rng) -> DistributionConfiguration:
+    def _setup_config(
+        self, _n_uav, _n_mav, _domain, _center_fraction, rng
+    ) -> DistributionConfiguration:
         """Gera os POIs e armazena no DistributionConfig."""
         uavs = self.generate_uav_pois(_n_uav, _domain, rng)
         mavs = self.generate_mav_pois(_n_mav, _domain, _center_fraction, rng)
@@ -92,12 +96,10 @@ class UAVMAVUAVDistribution(BaseDistribution):
 
         # Clippa suavemente
         uavs = np.vstack([uav_left, uav_right])
-        uavs[:, 0] = np.clip(uavs[:, 0], x_min + margin_x /
-                            2, x_max - margin_x / 2)
+        uavs[:, 0] = np.clip(uavs[:, 0], x_min + margin_x / 2, x_max - margin_x / 2)
         uavs[:, 1] = np.clip(uavs[:, 1], y_min, y_max)
 
         return tuple(Point(x, y) for x, y in uavs)
-
 
     def generate_mav_pois(
         self,
@@ -112,8 +114,9 @@ class UAVMAVUAVDistribution(BaseDistribution):
         y_span = y_max - y_min
 
         # Centro aleatório dentro da zona central
-        x_center = rng.uniform(-x_span * center_fraction /
-                            2, x_span * center_fraction / 2)
+        x_center = rng.uniform(
+            -x_span * center_fraction / 2, x_span * center_fraction / 2
+        )
         y_center = rng.uniform(-y_span * 0.1, y_span * 0.1)
 
         # Dispersão diferente nos eixos (alongado em Y)
@@ -129,3 +132,65 @@ class UAVMAVUAVDistribution(BaseDistribution):
         mavs[:, 1] = np.clip(mavs[:, 1], y_min, y_max)
 
         return tuple(Point(x, y) for x, y in mavs)
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
+    # ==========================================================
+    # 1️⃣ Setup RNG and initialize scenario
+    # ==========================================================
+    rng = np.random.default_rng(42)
+    distribution = UAVMAVUAVDistribution(
+        rng=rng,
+        n_uav=20,
+        n_mav=10,
+        domain=((-1000, 1000), (-1000, 1000)),
+        center_fraction=0.3,
+    )
+
+    config = distribution.config
+
+    # ==========================================================
+    # 2️⃣ Print debug summary
+    # ==========================================================
+    print("\n=== [UAV–MAV–UAV Distribution Debug] ===")
+    print(f"Domain: {config.domain}")
+    print(f"UAV Points: {len(config.poi_uav)}")
+    print(f"MAV Points: {len(config.poi_mav)}")
+
+    # Show sample coordinates (just a few)
+    print("\nFirst 3 UAV points:")
+    for p in config.poi_uav[:3]:
+        print(f"  ({p.x:.2f}, {p.y:.2f})")
+
+    print("\nFirst 3 MAV points:")
+    for p in config.poi_mav[:3]:
+        print(f"  ({p.x:.2f}, {p.y:.2f})")
+
+    # ==========================================================
+    # 3️⃣ Visualization
+    # ==========================================================
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.set_title("UAV–MAV–UAV Distribution Scenario")
+    ax.set_xlabel("X coordinate")
+    ax.set_ylabel("Y coordinate")
+
+    # UAV points (green)
+    uav_x = [p.x for p in config.poi_uav]
+    uav_y = [p.y for p in config.poi_uav]
+    ax.scatter(uav_x, uav_y, c="green", label="UAV POIs", s=40, alpha=0.7)
+
+    # MAV points (blue)
+    mav_x = [p.x for p in config.poi_mav]
+    mav_y = [p.y for p in config.poi_mav]
+    ax.scatter(mav_x, mav_y, c="blue", label="MAV POIs", s=40, alpha=0.7)
+
+    # Domain boundaries
+    (x_min, x_max), (y_min, y_max) = config.domain
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+    ax.grid(True, linestyle="--", alpha=0.6)
+    ax.legend()
+    plt.tight_layout()
+    plt.show()
