@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from skyweaver.scenarios.components.distributions.configuration import DistributionConfiguration
+from skyweaver.scenarios.components.distributions.distribution_configuration import DistributionConfiguration
 
 
 class BaseDistribution(ABC):
@@ -19,11 +19,11 @@ class BaseDistribution(ABC):
 
     @property
     def uav_pois(self):
-        return self._config.poi_uav
+        return self._config.uav_points
 
     @property
     def mav_pois(self):
-        return self._config.poi_mav
+        return self._config.mav_points
 
     @property
     def config(self) -> DistributionConfiguration:

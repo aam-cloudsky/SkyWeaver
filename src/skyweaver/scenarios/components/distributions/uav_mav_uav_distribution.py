@@ -1,7 +1,7 @@
 from typing import Optional
 import numpy as np
 
-from skyweaver.scenarios.components.distributions.configuration import (
+from skyweaver.scenarios.components.distributions.distribution_configuration import (
     DistributionConfiguration,
 )
 from skyweaver.core.geometry.point import Point
@@ -47,14 +47,17 @@ class UAVMAVUAVDistribution(BaseDistribution):
         self, _n_uav, _n_mav, _domain, _center_fraction, rng
     ) -> DistributionConfiguration:
         """Gera os POIs e armazena no DistributionConfig."""
-        uavs = self.generate_uav_pois(_n_uav, _domain, rng)
-        mavs = self.generate_mav_pois(_n_mav, _domain, _center_fraction, rng)
+        uav_points = self.generate_uav_pois(_n_uav, _domain, rng)
+        mav_points = self.generate_mav_pois(_n_mav, _domain, _center_fraction, rng)
 
-        return DistributionConfiguration(
+        config = DistributionConfiguration()
+        config.update(
             domain=_domain,
-            poi_uav=uavs,
-            poi_mav=mavs,
+            uav_points=uav_points,
+            mav_points=mav_points,
         )
+
+        return config
 
     # --------------------------------------------------
     # Geradores de POIs
@@ -156,16 +159,16 @@ if __name__ == "__main__":
     # ==========================================================
     print("\n=== [UAV–MAV–UAV Distribution Debug] ===")
     print(f"Domain: {config.domain}")
-    print(f"UAV Points: {len(config.poi_uav)}")
-    print(f"MAV Points: {len(config.poi_mav)}")
+    print(f"UAV Points: {len(config.uav_points)}")
+    print(f"MAV Points: {len(config.mav_points)}")
 
     # Show sample coordinates (just a few)
     print("\nFirst 3 UAV points:")
-    for p in config.poi_uav[:3]:
+    for p in config.uav_points[:3]:
         print(f"  ({p.x:.2f}, {p.y:.2f})")
 
     print("\nFirst 3 MAV points:")
-    for p in config.poi_mav[:3]:
+    for p in config.mav_points[:3]:
         print(f"  ({p.x:.2f}, {p.y:.2f})")
 
     # ==========================================================
@@ -177,13 +180,13 @@ if __name__ == "__main__":
     ax.set_ylabel("Y coordinate")
 
     # UAV points (green)
-    uav_x = [p.x for p in config.poi_uav]
-    uav_y = [p.y for p in config.poi_uav]
+    uav_x = [p.x for p in config.uav_points]
+    uav_y = [p.y for p in config.uav_points]
     ax.scatter(uav_x, uav_y, c="green", label="UAV POIs", s=40, alpha=0.7)
 
     # MAV points (blue)
-    mav_x = [p.x for p in config.poi_mav]
-    mav_y = [p.y for p in config.poi_mav]
+    mav_x = [p.x for p in config.mav_points]
+    mav_y = [p.y for p in config.mav_points]
     ax.scatter(mav_x, mav_y, c="blue", label="MAV POIs", s=40, alpha=0.7)
 
     # Domain boundaries

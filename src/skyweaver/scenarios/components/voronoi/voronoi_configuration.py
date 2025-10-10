@@ -59,7 +59,7 @@ class VoronoiConfiguration:
 # Manual test
 # =====================================================
 if __name__ == "__main__":
-    from skyweaver.scenarios.components.cluster.knn_cluster import KNNCluster
+    from skyweaver.scenarios.components.cluster.hdbscan_cluster import HDBSCANCluster
     from skyweaver.scenarios.components.distributions.uav_mav_uav_distribution import (
         UAVMAVUAVDistribution,
     )
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     dist = UAVMAVUAVDistribution(rng=rng)
     config = dist.config
 
-    clusterer = KNNCluster(random_state=42)
+    clusterer = HDBSCANCluster(random_state=42)
     clusterer.fit(config, k=list(range(2, 8)))
     centroids = clusterer.get_centroids()
 

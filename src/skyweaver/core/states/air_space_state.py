@@ -24,8 +24,6 @@ class ThreadSingleton(type):
 class AirspaceState(metaclass=ThreadSingleton):
     """Centralized singleton data registry for the SkyWeaver simulation."""
 
-    storage: dict = field(default_factory=dict)
-    
     # Primary points of interest
     uav_points: List[Point] = field(default_factory=list)
     mav_points: List[Point] = field(default_factory=list)
@@ -42,7 +40,34 @@ class AirspaceState(metaclass=ThreadSingleton):
     domain: Tuple[Tuple[float, float], Tuple[float, float]] = ((-1000, 1000), (-1000, 1000))
     seed: Optional[int] = None
     step: int = 0
-    _last_update: dict[str, float] = field(default_factory=dict)
+    _last_update: dict = field(default_factory=dict)
+
+
+    def update_state(self, source: str, **changes):
+        """
+        Apply attribute updates atomically with full traceability.
+        """
+
+        for attr, new_value in changes.items():
+            if hasattr(self, attr):
+                old_value = getattr(self, attr)
+                setattr(self, attr, new_value)
+
+                # Stamp metadata
+                stamp = {
+                    "step": self.step,
+                    "source": source,
+                    "attribute": attr,
+                    "old_value": old_value,
+                    "new_value": new_value,
+                }
+                self._last_update[attr] = stamp
+
+            else:
+                raise AttributeError(
+                    f"AirspaceState has no attribute '{attr}'")
+            
+
 
     def increment_step(self):
         """Advance the simulation step counter."""
@@ -54,7 +79,6 @@ class AirspaceState(metaclass=ThreadSingleton):
 
     def reset(self, view_name: str, params: dict):
         """Reset the state for a specific view."""
-        self.storage[view_name] = params
         self._mark_update(view_name)
 
 
