@@ -1,49 +1,64 @@
+from dataclasses import dataclass, field, fields
 from skyweaver.core.states.air_space_state import AirspaceState
 
-
+@dataclass
 class BaseConfiguration:
-    """
-    Immutable description of the UAV and MAV distribution.
-    Instantiating this class automatically updates the current AirspaceState.
-    """
+    """Reactive configuration mixin that syncs assignments with AirspaceState."""
 
-    def _list_variables(self):
-        """Return only public instance attributes."""
-        return {k: v for k, v in vars(self).items() if not k.startswith("_")}
-
-
-    def _update(self, **kwargs):
-        """
-        Updates only the distribution-related attributes of the AirspaceState.
-        Other layers (clusters, voronoi, etc.) remain unchanged.
-
-        AirspaceState is a singleton per thread, so this ensures thread-safe updates.
-        """
-        if not kwargs:
-            return
-
-        state = AirspaceState()
-        state.update_state(source=self.__class__.__name__, **kwargs)
-
-    def _load(self):
-        state = AirspaceState()
-        for var_name in self._list_variables().keys():
-            if hasattr(state, var_name):
-                setattr(self, var_name, getattr(state, var_name))
+    _transaction_open: bool = field(default=True, init=False, repr=False)
 
     def __post_init__(self):
+        """Hook called automatically by dataclasses."""
         self._load()
+        object.__setattr__(self, "_transaction_open", False)
 
-    def update(self, **kwargs):
-        """
-        Update local variables and propagate filtered subset to AirspaceState.
-        """
-        changed = {}
-        for var_name, value in kwargs.items():
-            if hasattr(self, var_name):
-                object.__setattr__(self, var_name, value)
-                changed[var_name] = value
+    def _list_variables(self):
+        """Return public dataclass field names."""
+        if hasattr(self, "__dataclass_fields__"):
+            return [f.name for f in fields(self) if not f.name.startswith("_")]
+        return [k for k in vars(self).keys() if not k.startswith("_")]
+    
+    def _dict_variables(self):
+        """Return a dictionary of public dataclass fields and their values."""
+        return {f.name: getattr(self, f.name) for f in fields(self) if not f.name.startswith("_")}
 
-        # Push only declared & compatible variables
-        if changed:
-            self._update(**changed)
+    def _update(self, **kwargs):
+        """Push selective updates to AirspaceState."""
+        if kwargs:
+            AirspaceState().update_state(source=self.__class__.__name__, **kwargs)
+
+    def _load(self):
+        """Load matching variables from AirspaceState."""
+        state = AirspaceState()
+        for var_name in self._list_variables():
+            if hasattr(state, var_name):
+                object.__setattr__(self, var_name, getattr(state, var_name))
+
+    
+
+    def __setattr__(self, name, value):
+        """Intercepts all assignments and updates AirspaceState if needed."""
+
+        if not getattr(self, "_transaction_open", False):
+            raise AttributeError(
+                "Direct assignment is disabled. Please, use the context manager: 'with Configuration() as config:'."
+            )
+        else:
+            if name in self._list_variables():
+                object.__setattr__(self, name, value)
+
+
+    def __enter__(self):
+        # Disable auto-sync (including __setattr__)
+        object.__setattr__(self, "_transaction_open", True)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # Re-enable and push all updates at once
+        
+        try:
+            if exc_type is None:
+                self._update(**self._dict_variables())
+        finally:
+            object.__setattr__(self, "_transaction_open", False)
+        

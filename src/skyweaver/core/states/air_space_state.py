@@ -1,6 +1,8 @@
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+
+from shapely import Polygon
 from skyweaver.core.geometry.point import Point
 
 
@@ -29,8 +31,20 @@ class AirspaceState(metaclass=ThreadSingleton):
     mav_points: List[Point] = field(default_factory=list)
 
     # Cluster-level information
-    centroids: List[Point] = field(default_factory=list)
-    cluster_polygons: Dict[str, List[Point]] = field(default_factory=dict)
+
+    clusters: Dict[str, List[Point]] = field(default_factory=dict)
+
+
+    centroids: Dict[str, Point] = field(default_factory=dict)
+    boundaries: Dict[str, List[Point]] = field(default_factory=dict)
+    polygons: Dict[str, Polygon] = field(default_factory=dict)
+    types: Dict[str, str] = field(default_factory=dict)
+
+
+
+
+
+
 
     # Voronoi and environment geometry
     voronoi_cells: Dict[str, List[Point]] = field(default_factory=dict)
@@ -81,39 +95,6 @@ class AirspaceState(metaclass=ThreadSingleton):
         """Reset the state for a specific view."""
         self._mark_update(view_name)
 
-
-
-    def reset_distribution(self):
-        """Clear only distribution-related data (UAV/MAV points and domain)."""
-        self.uav_points.clear()
-        self.mav_points.clear()
-        self.domain = ((-1000, 1000), (-1000, 1000))
-
-        self._mark_update("distribution")
-
-
-    def reset_clusters(self):
-        """Clear cluster and centroid data."""
-        self.centroids.clear()
-        self.cluster_polygons.clear()
-
-        self._mark_update("clusters")
-
-
-    def reset_voronoi(self):
-        """Clear Voronoi-related structures."""
-        self.voronoi_cells.clear()
-        self.bounding_polygon = None
-
-        self._mark_update("voronoi")
-
-
-    def reset_all(self):
-        """Clear everything (for a full simulation restart)."""
-        self.reset_distribution()
-        self.reset_clusters()
-        self.reset_voronoi()
-        self.step = 0
 
 
     def summary(self) -> str:

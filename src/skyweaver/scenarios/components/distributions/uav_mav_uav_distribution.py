@@ -50,12 +50,11 @@ class UAVMAVUAVDistribution(BaseDistribution):
         uav_points = self.generate_uav_pois(_n_uav, _domain, rng)
         mav_points = self.generate_mav_pois(_n_mav, _domain, _center_fraction, rng)
 
-        config = DistributionConfiguration()
-        config.update(
-            domain=_domain,
-            uav_points=uav_points,
-            mav_points=mav_points,
-        )
+        with DistributionConfiguration() as config:
+
+            config.domain = _domain
+            config.uav_points = uav_points
+            config.mav_points = mav_points
 
         return config
 
@@ -65,7 +64,7 @@ class UAVMAVUAVDistribution(BaseDistribution):
 
     def generate_uav_pois(
         self, n_poi: int, domain: tuple, rng: np.random.Generator
-    ) -> tuple[Point, ...]:
+    ) -> list[Point]:
         """Gera UAV POIs nas extremidades, concentrados em torno de centros aleatórios."""
         (x_min, x_max), (y_min, y_max) = domain
         half = n_poi // 2
@@ -102,7 +101,7 @@ class UAVMAVUAVDistribution(BaseDistribution):
         uavs[:, 0] = np.clip(uavs[:, 0], x_min + margin_x / 2, x_max - margin_x / 2)
         uavs[:, 1] = np.clip(uavs[:, 1], y_min, y_max)
 
-        return tuple(Point(x, y) for x, y in uavs)
+        return [Point(x, y) for x, y in uavs]
 
     def generate_mav_pois(
         self,
@@ -110,7 +109,7 @@ class UAVMAVUAVDistribution(BaseDistribution):
         domain: tuple,
         center_fraction: float,
         rng: np.random.Generator,
-    ) -> tuple[Point, ...]:
+    ) -> list[Point]:
         """Gera MAV POIs concentrados no centro, mas com alongamento vertical (em Y)."""
         (x_min, x_max), (y_min, y_max) = domain
         x_span = x_max - x_min
@@ -134,8 +133,7 @@ class UAVMAVUAVDistribution(BaseDistribution):
         mavs[:, 0] = np.clip(mavs[:, 0], x_min, x_max)
         mavs[:, 1] = np.clip(mavs[:, 1], y_min, y_max)
 
-        return tuple(Point(x, y) for x, y in mavs)
-
+        return [Point(x, y) for x, y in mavs]
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt

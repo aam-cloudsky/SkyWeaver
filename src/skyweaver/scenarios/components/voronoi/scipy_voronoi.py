@@ -57,7 +57,7 @@ class ScipyVoronoi(BaseVoronoi):
 
 
 if __name__ == "__main__":
-    from skyweaver.scenarios.components.cluster.knn_cluster import KNNCluster
+    from skyweaver.scenarios.components.cluster.hdbscan_cluster import KNNCluster
     from skyweaver.scenarios.components.distributions.uav_mav_uav_distribution import (
         UAVMAVUAVDistribution,
     )

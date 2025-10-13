@@ -5,8 +5,24 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
+from skyweaver.scenarios.components.cluster.cluster_boundary import ClusterBoundary
+from skyweaver.scenarios.components.cluster.cluster_configuration import ClusterConfiguration
 
-class BaseCluster(ABC):
+
+from shapely.geometry import LineString, Polygon, Point as ShapelyPoint
+from shapely.ops import unary_union
+from scipy.interpolate import UnivariateSpline
+import numpy as np
+import hdbscan
+import matplotlib.pyplot as plt
+from sklearn.metrics import davies_bouldin_score
+from typing import Dict, List, Any
+
+from skyweaver.core.geometry.point import Point
+
+
+
+class BaseCluster():
     """
     Abstract base class for all clustering algorithms in SkyWeaver.
 
@@ -14,80 +30,19 @@ class BaseCluster(ABC):
     for implementing clustering logic and centroid computation.
     """
 
+
+    def __init__(self):
+        self.cluster_boundary = ClusterBoundary()
     # ==========================================================
     # Abstract Methods (to be implemented by subclasses)
     # ==========================================================
+
     @abstractmethod
-    def get_centroids(self) -> List[Point]:
-        """Return the centroids of the last fitted clusters."""
+    def fit(self, data: List[Point]):
+        """Fit the clustering model to the data points."""
         pass
 
-    # ==========================================================
-    # Visualization Utility
-    # ==========================================================
-    def plot(
-        self,
-        ax=None,
-        title: str = "Identified Clusters",
-        cmap: str = "viridis"
-    ):
-        """
-        Display a 2D scatter plot of the identified clusters and their centroids.
-
-        Args:
-            ax: Optional matplotlib Axes instance (for composing multiple subplots).
-            title: Plot title.
-            cmap: Colormap name (e.g., 'viridis', 'plasma', 'Set2', 'cividis').
-        """
-        if not getattr(self, "clusters_", None):
-            print("[Warning] No clusters found. Run fit() or iterate() first.")
-            return
-
-        # Create axis if not provided
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(8, 6))
-
-        n_clusters = len(self.clusters_)  # type: ignore
-        colormap = cm.get_cmap(cmap, n_clusters)
-        colors = colormap(np.linspace(0, 1, n_clusters))
-
-        # Plot each cluster
-        for i, (label, points) in enumerate(self.clusters_.items()):  # type: ignore
-            arr = np.array([[p.x, p.y] for p in points])
-            if str(label).startswith("UAV_"):
-                marker, edgecolor = "o", "black"
-            elif str(label).startswith("MAV_"):
-                marker, edgecolor = "^", "gray"
-            else:
-                marker, edgecolor = "s", "none"
-
-            ax.scatter(
-                arr[:, 0],
-                arr[:, 1],
-                s=40,
-                color=colors[i],
-                marker=marker,
-                edgecolors=edgecolor,
-                label=f"{label}"
-            )
-
-        # Plot centroids
-        centroids = self.get_centroids()
-        centroids_arr = np.array([[c.x, c.y] for c in centroids])
-        ax.scatter(
-            centroids_arr[:, 0],
-            centroids_arr[:, 1],
-            c="black",
-            marker="x",
-            s=120,
-            label="Centroids"
-        )
-
-        # Formatting
-        ax.set_title(title)
-        ax.set_xlabel("X coordinate")
-        ax.set_ylabel("Y coordinate")
-        ax.legend()
-        ax.grid(True)
-        plt.tight_layout()
-        plt.show()
+    @abstractmethod
+    def predict(self, data: List[Point]) -> List[int]:
+        """Predict the cluster labels for the given data points."""
+        pass
