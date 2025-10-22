@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import List, Tuple
-from skyweaver.core.geometry.point import Point
+
+from shapely import Point
+
 from skyweaver.core.states.base_configuration import BaseConfiguration
 
 

@@ -2,7 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import Voronoi, voronoi_plot_2d
 from typing import List, Dict
-from skyweaver.core.geometry.point import Point
+
+from shapely import Point
+
 from skyweaver.scenarios.components.voronoi.base_voronoi import BaseVoronoi
 from skyweaver.scenarios.components.voronoi.voronoi_cell import VoronoiCell
 
@@ -57,7 +59,7 @@ class ScipyVoronoi(BaseVoronoi):
 
 
 if __name__ == "__main__":
-    from skyweaver.scenarios.components.cluster.hdbscan_cluster import KNNCluster
+    from skyweaver.scenarios.components.cluster.hdbscan_cluster import HDBSCANCluster
     from skyweaver.scenarios.components.distributions.uav_mav_uav_distribution import (
         UAVMAVUAVDistribution,
     )
@@ -67,11 +69,10 @@ if __name__ == "__main__":
     config = distribution.config
 
     # 1️⃣ Cluster UAVs and MAVs
-    clusterer = KNNCluster(random_state=42)
-    clusterer.fit(config, k=list(range(2, 8)))
+    clusterer = HDBSCANCluster()
 
     # 2️⃣ Generate Voronoi diagram from centroids
     centroids = clusterer.get_centroids()
     vor = ScipyVoronoi()
-    vor.fit(centroids, domain=config.domain)
-    vor.voronoi_finite_polygons_2d(clusterer)
+
+

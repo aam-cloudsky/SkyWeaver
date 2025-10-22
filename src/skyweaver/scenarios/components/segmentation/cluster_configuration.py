@@ -25,11 +25,10 @@ class ClusterConfiguration(BaseConfiguration):
     mav_points: List[Point] = field(default_factory=list)
 
     # === Cluster composition ===
-    clusters: Dict[str, List[Point]] = field(default_factory=dict)
+    clusters: Dict[str, List[Point]] = field(default_factory=dict) # {"UAV_0": [Point(...), ...], "MAV_1": [Point(...), ...]}
 
     # === Cluster attributes ===
     centroids: Dict[str, Point] = field(default_factory=dict)
     boundaries: Dict[str, List[Point]] = field(default_factory=dict)
-    polygons: Dict[str, Polygon] = field(default_factory=dict)
-    # {"UAV_0": "UAV", "MAV_1": "MAV"}
+    polygons: Dict[str, Polygon] = field(default_factory=dict) # {"UAV_0": Polygon(...), ...}
     types: Dict[str, str] = field(default_factory=dict)
