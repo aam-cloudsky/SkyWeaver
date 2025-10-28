@@ -5,7 +5,8 @@ from enum import Enum, auto
 class ZoneType(Enum):
     """Defines the main types of spatial zones in the airspace."""
     UAV = auto()                  # UAV operational zone
-    MAV = auto()                   # Manned aircraft zone (helicopter, air taxi)
+    MAV = auto()
+    FREE = auto()                  # Manned aircraft zone (helicopter, air taxi)
 
 
     def __str__(self) -> str:

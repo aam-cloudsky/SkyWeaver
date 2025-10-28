@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from skyweaver.scenarios.components.distributions.distribution_configuration import DistributionConfiguration
+from skyweaver.distributions.distribution_configuration import DistributionConfiguration
 
 
 class BaseDistribution(ABC):

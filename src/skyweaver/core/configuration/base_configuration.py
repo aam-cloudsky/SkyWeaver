@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field, fields
-from skyweaver.core.states.air_space_state import AirspaceState
+from skyweaver.airspace.airspace_state import AirspaceState
 
 @dataclass
 class BaseConfiguration:
@@ -23,9 +23,16 @@ class BaseConfiguration:
         return {f.name: getattr(self, f.name) for f in fields(self) if not f.name.startswith("_")}
 
     def _update(self, **kwargs):
-        """Push selective updates to AirspaceState."""
-        if kwargs:
-            AirspaceState().update_state(source=self.__class__.__name__, **kwargs)
+        """Push matching variables to AirspaceState."""
+        if not kwargs:
+            return
+
+        state = AirspaceState()
+        valid_kwargs = {k: v for k, v in kwargs.items() if hasattr(state, k)}
+
+        if valid_kwargs:
+            state.update_state(source=self.__class__.__name__, **valid_kwargs)
+
 
     def _load(self):
         """Load matching variables from AirspaceState."""

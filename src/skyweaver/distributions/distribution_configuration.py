@@ -3,7 +3,7 @@ from typing import List, Tuple
 
 from shapely import Point
 
-from skyweaver.core.states.base_configuration import BaseConfiguration
+from skyweaver.core.configuration.base_configuration import BaseConfiguration
 
 
 @dataclass

@@ -9,11 +9,12 @@ from skyweaver.core.enums.zone_type import ZoneType
 class Cluster:
     """Encapsulates a UAV or MAV cluster within the airspace."""
 
-    
+    source_points: list[Point]
     zone_type: ZoneType
     centroid: Point
     polygon: Polygon
     boundary: list[Point]
+
 
     # Optional metadata
     area: float = 0
@@ -40,3 +41,4 @@ class Cluster:
             "centroid": (self.centroid.x, self.centroid.y),
             "area": self.area,
         }
+    

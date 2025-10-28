@@ -1,84 +1,22 @@
-from abc import ABC, abstractmethod
-from typing import List
-from skyweaver.core.geometry.point import Point
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import cm
 
-from skyweaver.scenarios.components.cluster.cluster_configuration import ClusterConfiguration
-
-
-from shapely.geometry import LineString, Polygon, Point as ShapelyPoint
-from shapely.ops import unary_union
+from shapely import Point
+from shapely.geometry import Polygon
 from scipy.interpolate import UnivariateSpline
 import numpy as np
+from scipy.signal import medfilt
 
-
-from skyweaver.scenarios.components.cluster.cluster_configuration import ClusterConfiguration
-
-
-
-class ClusterBoundary():
+class ClusterShapeBuilder():
     def __init__(self):
        pass
-
-   # ==========================================================
-   # Boundary generation
-   # ==========================================================
-
-    def get_cluster_boundaries(self, min_radius=50.0, boundary_margin=100.0):
-        """
-        Hybrid boundary generator:
-        - 1 point → disk
-        - 2 points → line buffer
-        - 3+ points → smooth radial spline
-        """
-        boundaries = {}
-        info = {}
-
-        config = ClusterConfiguration()
-        for label, points in config.clusters.items():
-            if not points:
-                continue
-
-            arr = np.array([[p.x, p.y] for p in points])
-            cx, cy = arr.mean(axis=0)
-            n = len(points)
-
-            if n == 1:
-                geom = ShapelyPoint(cx, cy).buffer(min_radius)
-            elif n == 2:
-                geom = LineString(arr).buffer(boundary_margin)
-            else:
-                try:
-                    geom = self.smooth_radial_boundary(
-                        arr, offset=boundary_margin, smoothness=3.0)
-                except Exception as e:
-                    print(f"[WARNING] Fallback for cluster {label}: {e}")
-                    disks = [ShapelyPoint(p.x, p.y).buffer(
-                        boundary_margin) for p in points]
-                    geom = unary_union(disks)
-
-            radius = max(np.linalg.norm(
-                arr - np.array([cx, cy]), axis=1)) + boundary_margin
-
-            boundaries[label] = geom
-            info[label] = {
-                "centroid": (cx, cy),
-                "radius": radius,
-                "n_points": n,
-                "is_disk": n == 1,
-            }
-
-        return boundaries, info
 
     # ==========================================================
     # Stable smooth boundary generator
     # ==========================================================
+    @staticmethod
     def smooth_radial_boundary(
-        self,
-        points: np.ndarray,
-        centroid: tuple[float, float] | None = None,
+
+        centroid: Point,
+        source_points: list[Point],
         offset: float = 100.0,
         smoothness: float = 1.5,
         resolution: int = 360,
@@ -92,13 +30,12 @@ class ClusterBoundary():
         that are at least `min_angle_gap_deg` away from any real point.
         """
         # --- 1. Determine centroid ---
-        if centroid is None:
-            cx, cy = points.mean(axis=0)
-        else:
-            cx, cy = centroid
+        cx, cy = centroid.x, centroid.y
 
         # --- 2. Convert to polar coordinates ---
-        dx, dy = points[:, 0] - cx, points[:, 1] - cy
+        arr = np.array([(p.x, p.y) for p in source_points])
+        dx, dy = arr[:, 0] - cx, arr[:, 1] - cy
+
         real_angles = np.arctan2(dy, dx)
         real_radii = np.sqrt(dx**2 + dy**2) + offset  # r_existent + offset
 
@@ -129,8 +66,7 @@ class ClusterBoundary():
         all_angles = np.concatenate([all_angles, [all_angles[0] + 2 * np.pi]])
         all_radii = np.concatenate([all_radii, [all_radii[0]]])
 
-        print(
-            f"[DEBUG] Boundary points: {all_angles} (real: {len(real_angles)}, virtual: {len(virtual_angles)})")
+        print(f"[DEBUG] Boundary points: {all_angles} (real: {len(real_angles)}, virtual: {len(virtual_angles)})")
 
         # --- 7. Fit smooth spline ---
         # spline = PchipInterpolator(all_angles, all_radii)
@@ -143,7 +79,7 @@ class ClusterBoundary():
         r_smooth = np.clip(r_smooth, 0, r_max + offset)
 
         # Optional small median filter to remove small spikes
-        from scipy.signal import medfilt
+        
         r_smooth = medfilt(r_smooth, kernel_size=5)
 
         # --- 8. Safety clamp ---

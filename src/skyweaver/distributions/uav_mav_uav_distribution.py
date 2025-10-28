@@ -1,13 +1,11 @@
 from typing import Optional
 import numpy as np
+from shapely import Point
 
-from skyweaver.scenarios.components.distributions.distribution_configuration import (
-    DistributionConfiguration,
-)
-from skyweaver.core.geometry.point import Point
-from skyweaver.scenarios.components.distributions.base_distribution import (
-    BaseDistribution,
-)
+
+from skyweaver.distributions.base_distribution import BaseDistribution
+from skyweaver.distributions.distribution_configuration import DistributionConfiguration
+
 
 
 class UAVMAVUAVDistribution(BaseDistribution):
