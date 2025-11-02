@@ -3,6 +3,7 @@ import numpy as np
 from shapely import Point
 
 
+
 from skyweaver.distributions.base_distribution import BaseDistribution
 from skyweaver.distributions.distribution_configuration import DistributionConfiguration
 
@@ -30,7 +31,7 @@ class UAVMAVUAVDistribution(BaseDistribution):
         self._center_fraction = center_fraction
         self._rng = rng
 
-        _config = self._setup_config(n_uav, n_mav, domain, center_fraction, rng)
+        _config = self.generate_points()
         super().__init__(config=_config, rng=rng)
 
     def reset(self, rng: Optional[np.random.Generator] = None):
@@ -132,6 +133,12 @@ class UAVMAVUAVDistribution(BaseDistribution):
         mavs[:, 1] = np.clip(mavs[:, 1], y_min, y_max)
 
         return [Point(x, y) for x, y in mavs]
+    
+    def generate_points(self):
+        """Gera os pontos UAV e MAV e atualiza a configuração."""
+        return self._setup_config(
+            self._n_uav, self._n_mav, self._domain, self._center_fraction, self._rng
+        )
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
@@ -139,6 +146,8 @@ if __name__ == "__main__":
     # ==========================================================
     # 1️⃣ Setup RNG and initialize scenario
     # ==========================================================
+    config1 = DistributionConfiguration()
+    #AirspaceState()  # Make sure AirspaceState is initialized
     rng = np.random.default_rng(42)
     distribution = UAVMAVUAVDistribution(
         rng=rng,
@@ -148,8 +157,11 @@ if __name__ == "__main__":
         center_fraction=0.3,
     )
 
-    config = distribution.config
+    config = DistributionConfiguration()
+    #CONFIG IS EMPTY. Therefore, sync is not happening properly.
 
+    print("UAV Points in config:", len(config.uav_points))
+    print("UAV POINTS IN CONFIG1:", len(config1.uav_points))
     # ==========================================================
     # 2️⃣ Print debug summary
     # ==========================================================

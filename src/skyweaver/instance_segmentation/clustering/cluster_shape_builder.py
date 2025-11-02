@@ -66,7 +66,7 @@ class ClusterShapeBuilder():
         all_angles = np.concatenate([all_angles, [all_angles[0] + 2 * np.pi]])
         all_radii = np.concatenate([all_radii, [all_radii[0]]])
 
-        print(f"[DEBUG] Boundary points: {all_angles} (real: {len(real_angles)}, virtual: {len(virtual_angles)})")
+        #print(f"[DEBUG] Boundary points: {all_angles} (real: {len(real_angles)}, virtual: {len(virtual_angles)})")
 
         # --- 7. Fit smooth spline ---
         # spline = PchipInterpolator(all_angles, all_radii)

@@ -9,6 +9,7 @@ import hdbscan
 from shapely.geometry import Point
 import matplotlib.pyplot as plt
 
+
 from skyweaver.core.enums.zone_type import ZoneType
 from skyweaver.instance_segmentation.geometry.cluster import Cluster
 from skyweaver.instance_segmentation.clustering.base_clustering import BaseClustering
@@ -119,41 +120,48 @@ class HDBSCANClustering(BaseClustering):
         return config
 
 
-    def plot(self, config: ClusterConfiguration, title: str = "HDBSCAN Clusters (UAV + MAV)"):
-        """Visualize resulting clusters and centroids."""
-        plt.figure(figsize=(8, 8))
-        plt.title(title)
-        plt.xlabel("X")
-        plt.ylabel("Y")
-
-        for cluster in config.clusters:
-            arr = np.array([[p.x, p.y] for p in cluster.source_points])
-            color = "blue" if cluster.zone_type == ZoneType.UAV else "red"
-            plt.scatter(arr[:, 0], arr[:, 1], color=color, s=50, alpha=0.7)
-
-            # Plot polygon boundary
-            x, y = cluster.polygon.exterior.xy
-            plt.plot(x, y, color=color, linewidth=1.5)
-
-            # Plot centroid
-            plt.scatter(cluster.centroid.x, cluster.centroid.y,
-                        color="yellow", marker="*", s=150, edgecolor="black")
-
-        plt.axis("equal")
-        plt.tight_layout()
-        plt.show()
-
-
 # ==========================================================
 # Stand-alone demo
 # ==========================================================
 if __name__ == "__main__":
+    from skyweaver.airspace.airspace_state import AirspaceState
 
     print("USE DISTRIBUTION TO POIs TO GENERATE CLUSTERS")
+    from skyweaver.distributions.uav_mav_uav_distribution import UAVMAVUAVDistribution
     #rng = np.random.default_rng(42)
     #scenario = Di(rng)
-
+    
+    rng = np.random.default_rng(42)
+    distribution = UAVMAVUAVDistribution(
+        rng=rng,
+        n_uav=20,
+        n_mav=10,
+        domain=((-1000, 1000), (-1000, 1000)),
+        center_fraction=0.3,
+    )
     
     clustering = HDBSCANClustering()
     config = clustering.fit()
-    clustering.plot(config)
+    
+    state = AirspaceState()
+    plt.figure(figsize=(8, 8))
+    plt.title("HDBSCAN Clusters (UAV + MAV)")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+
+    for cluster in state.clusters:
+        arr = np.array([[p.x, p.y] for p in cluster.source_points])
+        color = "blue" if cluster.zone_type == ZoneType.UAV else "red"
+        plt.scatter(arr[:, 0], arr[:, 1], color=color, s=50, alpha=0.7)
+
+        # Plot polygon boundary
+        x, y = cluster.polygon.exterior.xy
+        plt.plot(x, y, color=color, linewidth=1.5)
+
+        # Plot centroid
+        plt.scatter(cluster.centroid.x, cluster.centroid.y,
+                    color="yellow", marker="*", s=150, edgecolor="black")
+
+    plt.axis("equal")
+    plt.tight_layout()
+    plt.show()

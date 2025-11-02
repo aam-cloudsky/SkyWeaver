@@ -7,7 +7,7 @@ from skyweaver.tesselation.optimization.base_voronoi_optimization import BaseVor
 import networkx as nx
 
 
-class GeneticVoronoiOptimization(BaseVoronoiOptimization):
+class DifferentialGeneticVoronoiOptimization(BaseVoronoiOptimization):
     """
     Genetic optimization of Voronoi seed points using differential evolution.
     """
@@ -102,3 +102,64 @@ class GeneticVoronoiOptimization(BaseVoronoiOptimization):
         print(
             f"[INFO] Optimization finished. Building Voronoi with {n_points} points.")
         self.update_seed_points(optimized_points)
+
+
+# ==========================================================
+# Stand-alone demo
+# ==========================================================
+# ==========================================================
+# Stand-alone demo
+# ==========================================================
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    from shapely.geometry import Point, LineString
+
+    print("[INFO] Testing GeneticVoronoiOptimization...")
+
+    # Reproducibility
+    np.random.seed(42)
+
+    # 1️⃣ Instantiate optimizer
+    optimizer = DifferentialGeneticVoronoiOptimization(n_seeds=40)
+
+    # 2️⃣ Run optimization
+    optimizer.optimize(max_generations=5)
+
+    # 3️⃣ Retrieve Voronoi configuration (built internally)
+    config = optimizer.voronoi_config
+
+    # 4️⃣ Plot Voronoi cells and adjacency graph
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_title("Genetic Voronoi Optimization — Voronoi Diagram and Graph")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+
+    # --- Draw Voronoi cells
+    for cell in config.voronoi_cells:
+        if cell.polygon is not None:
+            x, y = cell.polygon.exterior.xy
+            ax.plot(x, y, color="gray", linewidth=0.8)
+            ax.fill(x, y, color="lightgray", alpha=0.2)
+
+    # --- Draw adjacency graph (edges between cell centroids)
+    for u, v in config.adjacency_graph.edges():
+        c1 = config.voronoi_cells[u].seed_point
+        c2 = config.voronoi_cells[v].seed_point
+        line = LineString([(c1.x, c1.y), (c2.x, c2.y)])
+        x, y = line.xy
+        ax.plot(x, y, color="black", linewidth=0.8, alpha=0.5)
+
+    # --- Draw seed points
+    xs = [cell.seed_point.x for cell in config.voronoi_cells]
+    ys = [cell.seed_point.y for cell in config.voronoi_cells]
+    ax.scatter(xs, ys, color="royalblue", s=60, label="Seed Points")
+
+    (xmin, xmax), (ymin, ymax) = config.domain
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.grid(True, linestyle="--", alpha=0.3)
+    ax.legend()
+    plt.tight_layout()
+    plt.show()
+
+    print("[INFO] GeneticVoronoiOptimization test complete.")

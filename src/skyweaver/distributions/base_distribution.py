@@ -32,3 +32,7 @@ class BaseDistribution(ABC):
     @abstractmethod
     def reset(self, rng:Optional[np.random.Generator] = None):
         pass
+
+    @abstractmethod
+    def generate_points(self):
+        pass

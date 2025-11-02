@@ -1,10 +1,14 @@
 # src/skyweaver/airspace/airspace_state.py
+from dataclasses import fields
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import threading
 from shapely import Point
+from skyweaver.core.bus.reserved_id_enum import ReservedIDs
 from skyweaver.instance_segmentation.geometry.cluster import Cluster
 from skyweaver.tesselation.voronoi.voronoi_cell import VoronoiCell
 import networkx as nx
+
+from skyweaver.core.bus.message_hub import MessageHub, TopicsEnum, MessageContext
 
 # ---------------------------------------------------------------------
 # Thread-local singleton (same pattern you already had)
@@ -52,53 +56,96 @@ class AirspaceState(metaclass=ThreadSingleton):
         # Reactive callbacks
         self._on_update: Dict[str, List[Callable]] = {}
 
+        self.publisher_id = ReservedIDs.AIRSPACE_STATE.value
+        self.message_hub: MessageHub = MessageHub()
+        self._subscribe_to_topics()
+
+        
+
+    # ------------------------------------------------------------------
+    # MessageHub Registration and Subscription
+    # ------------------------------------------------------------------
+
+    def _subscribe_to_topics(self):
+        """Subscribe to relevant MessageHub topics."""
+
+
+        self.message_hub.subscribe(
+            topic=TopicsEnum.AIRSPACE_STATE_FETCH,
+            publisher_id=self.publisher_id,
+            subscriber=self._on_airspace_fetch
+        )
+
+        self.message_hub.subscribe(
+            topic=TopicsEnum.AIRSPACE_STATE_PULL,
+            publisher_id=self.publisher_id,
+            subscriber=self._on_airspace_pull
+        )
+
+    def _on_airspace_fetch(self, message: Dict, context: MessageContext):
+        """Handle AIRSPACE_STATE_FETCH requests.
+
+        The message is a dict like:
+            {"uav_points": None, "mav_points": None, "clusters": None}
+
+        The values are placeholders and are ignored — only keys matter.
+        AirspaceState responds with a dict mapping each requested field to its current value.
+        """
+        response = {}
+        for field_name in message.keys():
+            if hasattr(self, field_name):
+                response[field_name] = getattr(self, field_name)
+
+        # Send the current values back to the requester
+        response_context = MessageContext(
+            from_id=self.publisher_id,
+            to_id=context.from_id
+        )
+
+        self.message_hub.publish(
+            topic=TopicsEnum.AIRSPACE_STATE_FETCH,
+            message=response,
+            message_context=response_context
+        )
+
+
+    def _on_airspace_pull(self, message: Dict, context: MessageContext):
+        """Handle AIRSPACE_STATE_PULL requests."""
+
+        changes = message
+
+        if not changes:
+            return
+
+        applied = self.update_state(**changes)
+        self._broadcast_state_update(applied, context)
+
+    def _broadcast_state_update(self, changes: Dict[str, Any], origin_context: MessageContext):
+        """Broadcast state updates to interested parties."""
+        
+        response_context = MessageContext(
+            from_id=self.publisher_id,
+            to_id=ReservedIDs.BROADCAST.value,
+            exclude_ids=[origin_context.from_id]
+        )
+
+        self.message_hub.publish(
+            topic=TopicsEnum.AIRSPACE_STATE_PULL,
+            message=changes,
+            message_context=response_context
+        )
+
     # ------------------------------------------------------------------
     # Core state management
     # ------------------------------------------------------------------
-    def update_state(self, source: str, **changes):
+    def update_state(self, **changes):
         applied = {}
         for attr, new_value in changes.items():
             if hasattr(self, attr):
                 setattr(self, attr, new_value)
                 applied[attr] = new_value
-            else:
-                raise AttributeError(f"AirspaceState has no attribute '{attr}'")
-        if applied:
-            self._notify_listeners(source, applied)
-
-    def _notify_listeners(self, source, changes):
-        notified = set()
-        for attr, new_value in changes.items():
-            for cb in self._on_update.get(attr, []):
-                if cb not in notified:
-                    try:
-                        cb(source, attr, new_value)
-                        notified.add(cb)
-                    except Exception as e:
-                        print(f"[WARN] callback {cb} failed: {e}")
-
-
-
-
-
-    # ------------------------------------------------------------------
-    # Callback management
-    # ------------------------------------------------------------------
-    def add_callback(self, attribute: str, callback: Callable):
-        """Register a callback to be called on any update."""
-
-        if hasattr(self, attribute):
-            if attribute not in self._on_update:
-                self._on_update[attribute] = []
-            if callback not in self._on_update[attribute]:
-                self._on_update[attribute].append(callback)
-
-    def remove_callback(self, attribute: str, callback: Callable):
-        """Unregister a previously registered callback."""
-        for callbacks in self._on_update.values():
-            if callback in callbacks:
-                callbacks.remove(callback)
-
+            
+        return applied
 
     def increment_step(self):
         """Advance the simulation step counter."""
@@ -111,3 +158,15 @@ class AirspaceState(metaclass=ThreadSingleton):
         self.clusters.clear()
         self.voronoi_cells.clear()
         self.step = 0
+
+    def to_json(self) -> Dict[str, Any]:
+        """Serialize the current state to a JSON-compatible dictionary."""
+
+        variables =  {key: value for key, value in self.__dict__.items()
+                           if not callable(value) and not key.startswith('__')}
+
+        
+        #remove empty keys
+        variables = {key: value for key, value in variables.items() if value}
+
+        return variables

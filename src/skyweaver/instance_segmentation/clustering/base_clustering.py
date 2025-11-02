@@ -2,7 +2,7 @@ from abc import abstractmethod
 from typing import List
 
 from shapely import Point
-
+from skyweaver.instance_segmentation.clustering.cluster_configuration import ClusterConfiguration
 
 
 
@@ -19,11 +19,9 @@ class BaseClustering():
     # ==========================================================
 
     @abstractmethod
-    def fit(self, data: List[Point]):
-        """Fit the clustering model to the data points."""
+    def fit(self) -> ClusterConfiguration:
         pass
 
     @abstractmethod
-    def predict(self, data: List[Point]) -> List[int]:
-        """Predict the cluster labels for the given data points."""
+    def predict(self) -> List[int]:
         pass

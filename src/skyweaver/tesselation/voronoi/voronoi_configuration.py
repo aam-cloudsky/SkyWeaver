@@ -44,4 +44,3 @@ class VoronoiConfiguration(BaseConfiguration):
     domain: tuple[tuple[float, float], tuple[float, float]] = ((-1000, 1000), (-1000, 1000))
     step: int = 0
 
-   

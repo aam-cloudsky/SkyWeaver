@@ -402,6 +402,25 @@ files = [
 ]
 
 [[package]]
+name = "cma"
+version = "4.4.0"
+description = "CMA-ES, Covariance Matrix Adaptation Evolution Strategy for non-linear numerical optimization in Python"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "cma-4.4.0-py3-none-any.whl", hash = "sha256:46da7f95056b02496f4117269026dce3953ef0ae89717267540566effb85b052"},
+    {file = "cma-4.4.0.tar.gz", hash = "sha256:de89664f2a8522c74e40e19d26be51380d41082ea2dcefbd5943e0d0d90bd92c"},
+]
+
+[package.dependencies]
+numpy = "*"
+
+[package.extras]
+constrained-solution-tracking = ["moarchiving"]
+plotting = ["matplotlib"]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 description = "Cross-platform colored terminal text."
@@ -2953,4 +2972,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13"
-content-hash = "bd524025633ffcad12be21bf3ccc19c2812bbfd9265dfd8ba4c191e3e68524a2"
+content-hash = "98983021d69c1efaa162ed1bcaea4148734a5442733313e11f0498edc98c45a7"

@@ -37,22 +37,32 @@ class VoronoiBuilder:
         return None
 
     # -------------------------------------------------------------
-    @staticmethod
-    def _generate_border_points(bounds: tuple[tuple[float, float], tuple[float, float]], padding: float = 50.0) -> List[Point]:
-        """Generate auxiliary border points around the domain to bound the Voronoi diagram."""
-        (min_x, max_x), (min_y, max_y) = bounds
-        cx, cy = (min_x + max_x) / 2, (min_y + max_y) / 2
+    #@staticmethod
+    #def _generate_border_points(bounds: tuple[tuple[float, float], tuple[float, float]], padding: float = 50.0) -> List[Point]:
+    #    """Generate auxiliary border points around the domain to bound the Voronoi diagram."""
+    #    (min_x, max_x), (min_y, max_y) = bounds
+    #    cx, cy = (min_x + max_x) / 2, (min_y + max_y) / 2
 
-        return [
-            Point(min_x - padding, min_y - padding),
-            Point(max_x + padding, min_y - padding),
-            Point(max_x + padding, max_y + padding),
-            Point(min_x - padding, max_y + padding),
-            Point(cx, min_y - padding),
-            Point(cx, max_y + padding),
-            Point(min_x - padding, cy),
-            Point(max_x + padding, cy),
-        ]
+    #    return [
+    #        Point(min_x - padding, min_y - padding),
+    #        Point(max_x + padding, min_y - padding),
+    #        Point(max_x + padding, max_y + padding),
+    #        Point(min_x - padding, max_y + padding),
+    #        Point(cx, min_y - padding),
+    #        Point(cx, max_y + padding),
+    #        Point(min_x - padding, cy),
+    #        Point(max_x + padding, cy),
+    #    ]
+
+    @staticmethod
+    def _generate_border_points(bounds, padding, density=5):
+        (min_x, max_x), (min_y, max_y) = bounds
+        xs = np.linspace(min_x - padding, max_x + padding, density)
+        ys = np.linspace(min_y - padding, max_y + padding, density)
+        frame = [Point(x, y) for x in xs for y in [min_y - padding, max_y + padding]] + \
+                [Point(x, y)
+                for y in ys for x in [min_x - padding, max_x + padding]]
+        return frame
 
     # -------------------------------------------------------------
     @staticmethod
@@ -62,10 +72,14 @@ class VoronoiBuilder:
             raise ValueError(
                 "At least two seed points are required to build a Voronoi diagram."
             )
+        
+        (min_x, max_x), (min_y, max_y) = bounds
+        padding = max(max_x - min_x, max_y - min_y) * 1
+        
 
         # --- Add auxiliary border points (not returned as cells) ---
         border_points = VoronoiBuilder._generate_border_points(
-            bounds, padding=100.0)
+            bounds, padding=padding)
         all_points = seed_points + border_points
 
         pts = np.array([[p.x, p.y] for p in all_points])

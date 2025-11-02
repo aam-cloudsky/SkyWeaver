@@ -6,7 +6,7 @@ from skyweaver.airspace.airspace_state import AirspaceState
 from skyweaver.airspace.airspace_viewer import AirspaceViewer
 from skyweaver.distributions.uav_mav_uav_distribution import UAVMAVUAVDistribution
 from skyweaver.instance_segmentation.clustering.hdbscan_clustering import HDBSCANClustering
-from skyweaver.tesselation.optimization.genetic_optimization import GeneticVoronoiOptimization
+from skyweaver.tesselation.optimization.differential_genetic_optimization import DifferentialGeneticVoronoiOptimization
 
 
 viewer = AirspaceViewer()
@@ -33,7 +33,7 @@ distribution = UAVMAVUAVDistribution(
 clustering = HDBSCANClustering()
 clustering.fit()
 
-voronoi_optimization = GeneticVoronoiOptimization()
+voronoi_optimization = DifferentialGeneticVoronoiOptimization()
 voronoi_optimization.optimize()
 
 
