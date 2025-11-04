@@ -10,6 +10,7 @@ import streamlit.components.v1 as components
 from skyweaver.airspace.airspace_state import AirspaceState
 from skyweaver.distributions.uav_mav_uav_distribution import UAVMAVUAVDistribution
 from skyweaver.instance_segmentation.clustering.hdbscan_clustering import HDBSCANClustering
+from skyweaver.airspace.airspace_simulation import AirspaceSimulation
 
 
 # [ ] “Refactor to custom component to stabilise DOM and maintain scroll position”
@@ -37,41 +38,53 @@ def my_plotly_component(spec, key=None):
 
 
 def heavy_optimization(output_file: Path):
-    """Simulate a long optimization that updates results over time."""
+    """
+    Simulate a long optimization process that updates results over time.
+    The results are periodically written to a JSON file (latest.json),
+    which Streamlit can re-read to update the visualization.
+    """
+    # --- Initialize simulation ---
+    simulation = AirspaceSimulation()
 
-    state = AirspaceState()
-    rng = np.random.default_rng(42)
-    distribution = UAVMAVUAVDistribution(
-        rng=rng,
-        n_uav=20,
-        n_mav=10,
-        domain=((-1000, 1000), (-1000, 1000)),
-        center_fraction=0.3,
-    )
+    # Run the full setup pipeline once
+    simulation.run_distribution()
+    simulation.run_clustering()
+    simulation.run_optimization()
 
-    json.dump(state.to_json(), output_file.open("w"))
-
-    clustering = HDBSCANClustering()
-    config = clustering.fit()
-
-    json.dump(state.to_json(), output_file.open("w"))
-    
-    
+    # --- Main loop simulating progress ---
     for i in range(100):
-        # Simulate computation
-        time.sleep(0.3)
+        time.sleep(0.3)  # Simulate computation time
 
-        # Generate intermediate "points" and a fake metric
-        points = np.random.uniform(-100, 100, (10, 2))
+        state = simulation.state
+
+        # Safely extract Voronoi seed points as plain floats
+        points = [
+            [float(cell.seed_point.x), float(cell.seed_point.y)]
+            for cell in state.voronoi_cells
+        ]
+
+        print(points)
+
+        # Compute a mock "score" for demonstration
+        score = float(np.random.uniform(0, 1))
+
+        # Build the serializable snapshot
         result = {
             "iteration": i,
-            "points": points.tolist(),
-            "score": float(np.random.rand())
+            "score": score,
+            "points": points,
         }
 
-        # Save intermediate state to JSON file
-        with output_file.open("w") as f:
-            json.dump(result, f)
+        # --- Write to JSON file ---
+        try:
+            with output_file.open("w") as f:
+                json.dump(result, f)
+        except Exception as e:
+            print(f"[WARN] Failed to write JSON at iteration {i}: {e}")
+            continue
+
+    print("✅ Heavy optimization completed.")
+
 
 
 # ==========================================================
@@ -123,8 +136,8 @@ while st.session_state.running:
             )
 
             # --- Fixed axis ranges ---
-            fig.update_xaxes(range=[-100, 100])
-            fig.update_yaxes(range=[-100, 100])
+            fig.update_xaxes(range=[-1000, 1000])
+            fig.update_yaxes(range=[-1000, 1000])
 
             # Layout configuration
             fig.update_layout(

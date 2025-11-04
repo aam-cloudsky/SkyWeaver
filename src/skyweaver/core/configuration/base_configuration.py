@@ -22,20 +22,20 @@ class BaseConfiguration:
         _publisher_id = message_hub.register_publisher()
 
         message_hub.subscribe(
-            topic=TopicsEnum.AIRSPACE_STATE_FETCH,
+            topic=TopicsEnum.AIRSPACE_STATE_GET,
             publisher_id=_publisher_id,
             subscriber=self._on_airspace_fetch_response
         )
 
 
         message_hub.subscribe(
-            topic=TopicsEnum.AIRSPACE_STATE_PULL,
+            topic=TopicsEnum.AIRSPACE_STATE_UPDATE,
             publisher_id=_publisher_id,
             subscriber=self._on_airspace_pull_update
         )
 
         MessageHub().publish(
-            topic=TopicsEnum.AIRSPACE_STATE_FETCH,
+            topic=TopicsEnum.AIRSPACE_STATE_GET,
             message=self._dict_variables(),
             message_context=MessageContext(
                 from_id=_publisher_id,
@@ -106,7 +106,7 @@ class BaseConfiguration:
 
                 if hasattr(self, "_publisher_id"):
                     MessageHub().publish(
-                        topic=TopicsEnum.AIRSPACE_STATE_PULL,
+                        topic=TopicsEnum.AIRSPACE_STATE_UPDATE,
                         message=self._dict_variables(),
                         message_context=MessageContext(
                             from_id=self._publisher_id, #type: ignore

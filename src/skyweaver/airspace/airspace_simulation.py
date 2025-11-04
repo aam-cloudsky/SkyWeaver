@@ -1,6 +1,7 @@
 from skyweaver.airspace.base_airspace_simulation import BaseSimulation
 import numpy as np
 
+
 from skyweaver.distributions.uav_mav_uav_distribution import UAVMAVUAVDistribution
 from skyweaver.instance_segmentation.clustering.hdbscan_clustering import HDBSCANClustering
 from skyweaver.tesselation.optimization.cmaes_voronoi_optimization import CMAESVoronoiOptimization
@@ -36,12 +37,13 @@ if __name__ == "__main__":
     print("[INFO] AirspaceSimulation initialized.")
     
     simulation = AirspaceSimulation()
-    print("Clusters", len(simulation.state.clusters))
+    simulation.on_change_state(lambda msg: print(
+        f"[LOG INFO] msg received: {msg.keys()}"))
+    
     simulation.run_distribution()
-    print("Clusters", len(simulation.state.clusters))
     simulation.run_clustering()
-    print("Clusters", len(simulation.state.clusters))
     simulation.run_optimization()
+
     print("Clusters", len(simulation.state.clusters))
     
 

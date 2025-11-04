@@ -28,15 +28,3 @@ class ClusterConfiguration(BaseConfiguration):
     # === Cluster composition ===
     clusters: list[Cluster] = field(default_factory=list)
 
-    # ----------------------------------------------------------
-    # --- Utility methods ---
-    # ----------------------------------------------------------
-    def get_by_type(self, zone_type: ZoneType) -> List[Cluster]:
-        """Return all clusters that match the given zone type."""
-        return [c for c in self.clusters if c.zone_type == zone_type]
-    
-    def summary(self) -> str:
-        """Provide a compact human-readable summary for debugging."""
-        n_uav = len(self.get_by_type(ZoneType.UAV))
-        n_mav = len(self.get_by_type(ZoneType.MAV))
-        return f"ClusterConfiguration: {n_uav} UAV clusters, {n_mav} MAV clusters"

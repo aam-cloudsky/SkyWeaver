@@ -71,19 +71,19 @@ class AirspaceState(metaclass=ThreadSingleton):
 
 
         self.message_hub.subscribe(
-            topic=TopicsEnum.AIRSPACE_STATE_FETCH,
+            topic=TopicsEnum.AIRSPACE_STATE_GET,
             publisher_id=self.publisher_id,
-            subscriber=self._on_airspace_fetch
+            subscriber=self._on_airspace_get
         )
 
         self.message_hub.subscribe(
-            topic=TopicsEnum.AIRSPACE_STATE_PULL,
+            topic=TopicsEnum.AIRSPACE_STATE_UPDATE,
             publisher_id=self.publisher_id,
-            subscriber=self._on_airspace_pull
+            subscriber=self._on_airspace_update
         )
 
-    def _on_airspace_fetch(self, message: Dict, context: MessageContext):
-        """Handle AIRSPACE_STATE_FETCH requests.
+    def _on_airspace_get(self, message: Dict, context: MessageContext):
+        """Handle AIRSPACE_STATE_GET requests.
 
         The message is a dict like:
             {"uav_points": None, "mav_points": None, "clusters": None}
@@ -103,14 +103,14 @@ class AirspaceState(metaclass=ThreadSingleton):
         )
 
         self.message_hub.publish(
-            topic=TopicsEnum.AIRSPACE_STATE_FETCH,
+            topic=TopicsEnum.AIRSPACE_STATE_GET,
             message=response,
             message_context=response_context
         )
 
 
-    def _on_airspace_pull(self, message: Dict, context: MessageContext):
-        """Handle AIRSPACE_STATE_PULL requests."""
+    def _on_airspace_update(self, message: Dict, context: MessageContext):
+        """Handle AIRSPACE_STATE_UPDATE requests."""
 
         changes = message
 
@@ -130,7 +130,7 @@ class AirspaceState(metaclass=ThreadSingleton):
         )
 
         self.message_hub.publish(
-            topic=TopicsEnum.AIRSPACE_STATE_PULL,
+            topic=TopicsEnum.AIRSPACE_STATE_UPDATE,
             message=changes,
             message_context=response_context
         )

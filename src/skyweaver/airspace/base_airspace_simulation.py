@@ -1,10 +1,13 @@
 # src/skyweaver/simulation/base_simulation.py
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Callable, Dict, Optional
 import numpy as np
 
 from skyweaver.airspace.airspace_state import AirspaceState
+from skyweaver.core.bus.message_hub import MessageHub
+from skyweaver.core.bus.reserved_id_enum import ReservedIDs
+from skyweaver.core.bus.topics_enum import TopicsEnum
 from skyweaver.distributions.base_distribution import BaseDistribution
 from skyweaver.instance_segmentation.clustering.base_clustering import BaseClustering
 from skyweaver.tesselation.optimization.base_voronoi_optimization import BaseVoronoiOptimization
@@ -33,19 +36,17 @@ class BaseSimulation(ABC):
         # Shared reactive state
         self.state = AirspaceState()
 
+        self._on_change_callbacks = []
+        self._subscribe_to_airspace_state_updates()
+
     def set_distribution(self, distribution: BaseDistribution):
         self.distribution = distribution
-        print(f"[INFO] Distribution set → {distribution.__class__.__name__}")
-
 
     def set_clustering(self, clustering: BaseClustering):
         self.clustering = clustering
-        print(f"[INFO] Clustering set → {clustering.__class__.__name__}")
-
 
     def set_optimizer(self, optimizer: BaseVoronoiOptimization):
         self.optimizer = optimizer
-        print(f"[INFO] Optimizer set → {optimizer.__class__.__name__}")
 
 
     # ==========================================================
@@ -53,7 +54,6 @@ class BaseSimulation(ABC):
     # ==========================================================
     def run_distribution(self):
         """Generate points according to the distribution strategy."""
-        print("[INFO] Running distribution algorithm...")
         self.distribution.generate_points()
         return self.distribution.uav_pois, self.distribution.mav_pois
 
@@ -71,6 +71,30 @@ class BaseSimulation(ABC):
     # ==========================================================
     def run_optimization(self):
         """Run Voronoi optimization based on cluster geometry."""
-        print("[INFO] Running optimization algorithm...")
         self.optimizer.optimize(10)
         return self.optimizer.voronoi_config
+    
+    # ==========================================================
+    # Stage 4: Callbacks
+    # ==========================================================
+
+    def _subscribe_to_airspace_state_updates(self):
+        """Subscribe to AirspaceState update messages to trigger callbacks."""
+
+        hub = MessageHub()
+        hub.subscribe(
+            topic=TopicsEnum.AIRSPACE_STATE_UPDATE,
+            publisher_id=ReservedIDs.LOGGER.value,
+            subscriber=self._on_airspace_state_update,
+        )
+
+
+    def on_change_state(self, callback: Callable[[Dict[str, Any]], None]):
+        """Register a callback to be notified whenever the state changes."""
+        self._on_change_callbacks.append(callback)
+
+    def _on_airspace_state_update(self, message: Dict, context):
+        """Triggered automatically by AirspaceState updates."""
+        # message already contains only the changed fields
+        for cb in self._on_change_callbacks:
+            cb(message)

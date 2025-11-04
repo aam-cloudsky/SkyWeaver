@@ -40,7 +40,6 @@ class VoronoiConfiguration(BaseConfiguration):
 
     score: float = field(default=0.0)
 
-    # --- Metadata ---
+
     domain: tuple[tuple[float, float], tuple[float, float]] = ((-1000, 1000), (-1000, 1000))
-    step: int = 0
 
