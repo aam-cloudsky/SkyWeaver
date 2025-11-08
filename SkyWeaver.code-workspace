@@ -3,5 +3,54 @@
         {
             "path": "."
         }
-    ]
+    ],
+    "settings": {
+        // Optional: automatically open PowerShell with QGIS env for every new terminal
+        "terminal.integrated.profiles.windows": {
+            "PowerShell (QGIS)": {
+                "source": "PowerShell",
+                "args": [
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    "${workspaceFolder}\\qgis_link.ps1"
+                ]
+            }
+        },
+        "terminal.integrated.defaultProfile.windows": "PowerShell (QGIS)"
+    },
+    "launch": {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Python: SkyWeaver + QGIS",
+                "type": "python",
+                "request": "launch",
+                "program": "${file}",
+                "console": "integratedTerminal",
+                "justMyCode": false,
+                "env": {
+                    "CONDA_DEFAULT_ENV": "skyweaver312"
+                },
+                "preLaunchTask": "load-qgis-env"
+            }
+        ]
+    },
+    "tasks": {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "load-qgis-env",
+                "type": "shell",
+                "command": "powershell",
+                "args": [
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    "${workspaceFolder}\\qgis_link.ps1"
+                ],
+                "problemMatcher": []
+            }
+        ]
+    }
 }
