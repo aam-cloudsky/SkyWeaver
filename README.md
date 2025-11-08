@@ -4,6 +4,11 @@ A modular simulator to organize airspace constraints and orchestrate future auto
 
 ---
 
+To use QGIS library properly inside your virtualised environment, you have to linking it:
+MACOS:
+export PYTHONPATH="/Applications/QGIS-LTR.app/Contents/Resources/python:/Applications/QGIS-LTR.app/Contents/Resources/python/site-packages:$PYTHONPATH"
+
+
 ## 🌐 Context
 
 **SkyWeaver** is a modular UTM (Unmanned Traffic Management) simulator designed to structure airspace constraints and enable future autonomous aerial operations.  
