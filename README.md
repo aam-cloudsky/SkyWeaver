@@ -151,3 +151,13 @@ Feel free to open issues or suggest improvements. The project is designed to be 
 This project is currently private and all data is confidential. Unauthorized use or distribution is strictly prohibited.
 
 ---
+
+I needed firstly find the qgis python 3.12
+
+them install the project:
+$ & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m pip install -e .
+
+$ To Use QGIS's python: & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" 
+$ pip: & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m pip
+$ & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m poetry install
+$ & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m skyweaver.distributions.uav_mav_uav_distribution
