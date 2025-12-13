@@ -22,6 +22,7 @@ class HexGridConfiguration(BaseConfiguration):
     hex_cells: List[HexCell] = field(default_factory=list)
     adjacency_graph: nx.Graph = field(default_factory=nx.Graph)
     clusters: List[Cluster] = field(default_factory=list)
+    cell_size: float = field(default=1.0)
 
 
 

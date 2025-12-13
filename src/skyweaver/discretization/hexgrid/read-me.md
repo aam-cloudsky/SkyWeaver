@@ -6,3 +6,29 @@ In geometry and crystallography, a Bravais lattice, named after Auguste Bravais 
 
 $${\displaystyle \mathbf {R} =n_{1}\mathbf {a} _{1}+n_{2}\mathbf {a} _{2}+n_{3}\mathbf {a} _{3},}$$
 where the ni are any integers, and ai are primitive translation vectors, or primitive vectors, which lie in different directions (not necessarily mutually perpendicular) and span the lattice. The choice of primitive vectors for a given Bravais lattice is not unique. A fundamental aspect of any Bravais lattice is that, for any choice of direction, the lattice appears exactly the same from each of the discrete lattice points when looking in that chosen direction.
+
+
+ctrl-shift-v
+
+
+
+
+
+
+## Fundamentação Teórica:
+Honeycomb Geometry - Honeycomb conjecture
+
+
+
+Um hexagonal grid computacional é um lattice discreto bidimensional definido por:
+
+um conjunto de índices inteiros
+
+uma regra fixa de vizinhança
+
+uma função de embedding geométrico
+
+## Hexagonal Lattice - Grid Hexagonal
+https://www.redblobgames.com/grids/hexagons/
+
+

@@ -60,6 +60,7 @@ class AirspaceState(metaclass=ThreadSingleton):
         self.message_hub: MessageHub = MessageHub()
         self._subscribe_to_topics()
 
+        #Grid
         
 
     # ------------------------------------------------------------------
