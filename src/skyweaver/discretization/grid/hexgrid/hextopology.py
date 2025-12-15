@@ -1,5 +1,5 @@
 from typing import List
-from skyweaver.discretization.hexgrid.hexcoord import HexCoord
+from skyweaver.discretization.grid.hexgrid.hexcoord import HexCoord
 
 __all__ = [
     "DIRECTIONS",

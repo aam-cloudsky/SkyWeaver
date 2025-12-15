@@ -14,6 +14,7 @@ class Cluster:
     centroid: Point
     polygon: Polygon
     boundary: list[Point]
+    _boundary_max_distance: float = 0.0
 
 
     # Optional metadata
@@ -41,4 +42,28 @@ class Cluster:
             "centroid": (self.centroid.x, self.centroid.y),
             "area": self.area,
         }
+    
+    def farthest_boundary(self) -> float:
+        """Return the radius to point in the boundary farthest from the centroid."""
+
+        if self._boundary_max_distance > 0:
+            return self._boundary_max_distance
+        
+        max_dist = 0
+
+        for point in self.boundary:
+            dist = self.centroid.distance(point)
+            if dist > max_dist:
+                max_dist = dist
+
+        self._boundary_max_distance = max_dist
+        return max_dist
+    
+    @property
+    def boundary_max_distance(self) -> float:
+        if self._boundary_max_distance > 0:
+            return self._boundary_max_distance
+        
+        self._boundary_max_distance = self.farthest_boundary()
+        return self._boundary_max_distance
     

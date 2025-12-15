@@ -1,5 +1,5 @@
 from typing import Tuple
-from skyweaver.discretization.hexgrid.hexcoord import HexCoord
+from skyweaver.discretization.grid.hexgrid.hexcoord import HexCoord
 
 
 def lerp(a: HexCoord, b: HexCoord, t: float) -> tuple[float, float]:
