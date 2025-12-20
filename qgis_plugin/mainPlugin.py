@@ -5,6 +5,8 @@ from qgis.core import QgsProject
 import os
 import sys
 
+import qgis
+
 
 class SkyWeaverPlugin:
     """Basic QGIS plugin entry point for SkyWeaver."""
