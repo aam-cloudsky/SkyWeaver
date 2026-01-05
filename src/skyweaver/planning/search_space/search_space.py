@@ -1,0 +1,6 @@
+from typing import Iterable, Protocol
+
+
+class SearchSpace(Protocol):
+    def successors(self, state) -> Iterable: ...
+    def heuristic(self, a, b) -> float: ...

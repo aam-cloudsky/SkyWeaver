@@ -1,19 +1,22 @@
-
-
-
 from math import ceil, floor
 from typing import List, Optional, Tuple
 
 from shapely import Point
 from skyweaver.discretization.grid.hexgrid.hexcoord import HexCoord
-from skyweaver.discretization.grid.hexgrid.hexgrid_configuration import HexGridConfiguration
+from skyweaver.discretization.grid.hexgrid.hexgrid_configuration import (
+    HexGridConfiguration,
+)
 
 from typing import Dict, Iterable
 from skyweaver.discretization.grid.hexgrid.hexcoord import HexCoord
 from skyweaver.discretization.grid.hexgrid.hexcell import HexCell
 
-from skyweaver.discretization.grid.hexgrid.hexprojection import pixel_to_pointy_hex, pixel_to_pointy_hex_frac, pointy_hex_to_pixel
-from skyweaver.discretization.grid.hexgrid.hextopology import neighbors
+from skyweaver.discretization.grid.hexgrid.hexprojection import (
+    pixel_to_pointy_hex,
+    pixel_to_pointy_hex_frac,
+    pointy_hex_to_pixel,
+)
+
 from skyweaver.discretization.grid.hexgrid.hexcoord import HexCoord
 from skyweaver.discretization.grid.hexgrid.hexcell import HexCell
 from skyweaver.discretization.grid.base_grid import BaseGrid
@@ -30,12 +33,10 @@ class HexGrid(BaseGrid):
 
         self.config: HexGridConfiguration = HexGridConfiguration()
         self._cells: Dict[HexCoord, HexCell] = {}
-        
 
-        #self._cell_size: float = cell_size
+        # self._cell_size: float = cell_size
         with self.config:
             self.cell_size = cell_size
-
 
     # =======================================================
     # Private Functions
@@ -48,7 +49,9 @@ class HexGrid(BaseGrid):
         return cell
 
     def _get_cell_from_coord(self, coord: HexCoord) -> Optional[HexCell]:
-        if not self._coord_inside_domain(coord, self.config.cell_size, self.config.domain):
+        if not self._coord_inside_domain(
+            coord, self.config.cell_size, self.config.domain
+        ):
             return None
 
         cell = self._cells.get(coord)
@@ -56,7 +59,7 @@ class HexGrid(BaseGrid):
             cell = self._create_cell(coord)
 
         return cell
-    
+
     def _is_within_risky_area(self, cell: HexCell, cluster: Cluster) -> bool:
         """Check if the cell is within the risky area of the cluster."""
         cell_center = cell.cartesian_center
@@ -66,8 +69,10 @@ class HexGrid(BaseGrid):
         distance = vector.length
 
         return cluster.boundary_max_distance + cell.size >= distance
-    
-    def _verify_distance(self, point_a: Point, point_b: Point, threshold: float) -> bool:
+
+    def _verify_distance(
+        self, point_a: Point, point_b: Point, threshold: float
+    ) -> bool:
         """Check if the distance between two points is within a threshold."""
         return point_a.distance(point_b) <= threshold
 
@@ -83,7 +88,7 @@ class HexGrid(BaseGrid):
                 return False
 
         return True
-    
+
     # =======================================================
     # Static Methods
     # =======================================================
@@ -119,22 +124,6 @@ class HexGrid(BaseGrid):
         coord = pixel_to_pointy_hex(x, y, self.config.cell_size)
 
         return self._get_cell_from_coord(coord)
-
-    # --- Pathfinding interface ----------------------------
-
-    def successors(self, cell: HexCell) -> list[HexCoord]:
-        succ = []
-        for n in neighbors(cell.coord):
-            _cell = self._get_cell_from_coord(n)
-            if _cell is None:
-                continue
-            if not _cell.navigable:
-                continue
-            succ.append(n)
-        return succ
-
-    def heuristic(self, a: HexCoord, b: HexCoord) -> float:
-        return (a-b).norm()
 
     def iter_domain_cells(self) -> Iterable[HexCell]:
         """
@@ -176,11 +165,11 @@ if __name__ == "__main__":
     # ------------------------------------------------------------
     # 1. Build a simple configuration
     # ------------------------------------------------------------
-    
+
     grid = HexGrid()
     cells = grid.iter_domain_cells()
 
-    #print(f"Generated hex grid with {len(cells)} cells.")
+    # print(f"Generated hex grid with {len(cells)} cells.")
     # ------------------------------------------------------------
     # 2. Plot the hex grid
     # ------------------------------------------------------------
@@ -201,8 +190,15 @@ if __name__ == "__main__":
 
         # Optional: plot axial coordinates at center (debug)
         cx, cy = cell.cartesian_center.x, cell.cartesian_center.y
-        ax.text(cx, cy, f"({cell.coord.q},{cell.coord.r})",
-                ha="center", va="center", fontsize=6, alpha=0.4)
+        ax.text(
+            cx,
+            cy,
+            f"({cell.coord.q},{cell.coord.r})",
+            ha="center",
+            va="center",
+            fontsize=6,
+            alpha=0.4,
+        )
 
     print("Plotted hex grid.")
     # ------------------------------------------------------------
@@ -215,7 +211,6 @@ if __name__ == "__main__":
         ox, oy = origin_cell.cartesian_center.x, origin_cell.cartesian_center.y
         ax.plot(ox, oy, "bx", label="HexCoord(0,0) center")
 
-
     print("Plotted origin validation.")
 
     # ------------------------------------------------------------
@@ -226,7 +221,6 @@ if __name__ == "__main__":
     (xmin, xmax), (ymin, ymax) = grid.get_domain()
     ax.set_xlim(xmin, xmax)
     ax.set_ylim(ymin, ymax)
-
 
     ax.grid(False)
     ax.grid(False)
