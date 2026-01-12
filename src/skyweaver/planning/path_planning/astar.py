@@ -1,81 +1,100 @@
 from __future__ import annotations
 
 import heapq
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Callable
 
 from skyweaver.planning.search_space.search_space import SearchSpace
+
+
+CostFn = Callable[[Any, Any], float]
+StopFn = Callable[[Any, float], bool]
 
 
 class AStar:
     """
     Generic A* path planning algorithm.
 
-    This implementation is deliberately agnostic to:
-    - grid type
-    - geometry
-    - coordinate system
-
-    It operates purely on a SearchSpace abstraction.
+    - Geometry-agnostic
+    - Grid-agnostic
+    - Ready for bounded and multi-target extensions
     """
 
-    def __init__(self, space: SearchSpace):
+    def __init__(
+        self,
+        space: SearchSpace,
+        cost_fn: Optional[CostFn] = None,
+    ):
         self.space = space
+        self.cost_fn = cost_fn or (lambda a, b: 1.0)
 
+    # ------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------
     def search(
         self,
         start: Any,
         goal: Any,
+        *,
+        stop_fn: Optional[StopFn] = None,
     ) -> Optional[List[Any]]:
         """
-        Compute a path from start to goal using A*.
-
-        Parameters
-        ----------
-        start : Any
-            Start state (must be hashable).
-        goal : Any
-            Goal state (must be hashable).
-
-        Returns
-        -------
-        list[Any] or None
-            Ordered list of states from start to goal (inclusive),
-            or None if no path exists.
+        Standard single-goal A* search.
         """
 
-        # Priority queue: (f_score, tie_breaker, state)
+        came_from, g_score = self._run(
+            start=start,
+            goal=goal,
+            stop_fn=stop_fn,
+        )
+
+        if goal not in came_from and goal != start:
+            return None
+
+        return self._reconstruct_path(came_from, goal)
+
+    # ------------------------------------------------------------
+    # Core A* loop (reusable)
+    # ------------------------------------------------------------
+    def _run(
+        self,
+        start: Any,
+        goal: Any,
+        stop_fn: Optional[StopFn],
+    ) -> Tuple[Dict[Any, Any], Dict[Any, float]]:
+        """
+        Core A* expansion loop.
+        Returns search tree and g-scores.
+        """
+
         open_heap: List[Tuple[float, int, Any]] = []
-
-        # Cost from start to state
-        g_score: Dict[Any, float] = {start: 0.0}
-
-        # For path reconstruction
         came_from: Dict[Any, Any] = {}
+        g_score: Dict[Any, float] = {start: 0.0}
+        closed_set = set()
 
-        # Tie-breaker to ensure deterministic ordering
         counter = 0
-
-        # Initial node
         f_start = self.space.heuristic(start, goal)
         heapq.heappush(open_heap, (f_start, counter, start))
 
-        closed_set = set()
-
         while open_heap:
-            _, _, current = heapq.heappop(open_heap)
-
-            if current == goal:
-                return self._reconstruct_path(came_from, current)
+            f_current, _, current = heapq.heappop(open_heap)
 
             if current in closed_set:
                 continue
 
             closed_set.add(current)
 
-            for neighbor in self.space.successors(current):
-                tentative_g = g_score[current] + 1.0  # uniform cost
+            # Optional external stopping logic (bounds, envelopes, etc.)
+            if stop_fn and stop_fn(current, g_score[current]):
+                continue
 
-                if neighbor in g_score and tentative_g >= g_score[neighbor]:
+            if current == goal:
+                break
+
+            for neighbor in self.space.successors(current):
+                tentative_g = g_score[current] + \
+                    self.cost_fn(current, neighbor)
+
+                if tentative_g >= g_score.get(neighbor, float("inf")):
                     continue
 
                 came_from[neighbor] = current
@@ -85,26 +104,24 @@ class AStar:
                 counter += 1
                 heapq.heappush(open_heap, (f_score, counter, neighbor))
 
-        # No path found
-        return None
+        return came_from, g_score
 
+    # ------------------------------------------------------------
+    # Utilities
+    # ------------------------------------------------------------
     @staticmethod
     def _reconstruct_path(
         came_from: Dict[Any, Any],
-        current: Any,
+        goal: Any,
     ) -> List[Any]:
-        """
-        Reconstruct path from came_from map.
-        """
-        path = [current]
-        while current in came_from:
-            current = came_from[current]
-            path.append(current)
+        path = [goal]
+        while goal in came_from:
+            goal = came_from[goal]
+            path.append(goal)
 
         path.reverse()
         return path
-
-
+    
 if __name__ == "__main__":
     # ------------------------------------------------------------
     # Interactive A* + HexGrid visualization
