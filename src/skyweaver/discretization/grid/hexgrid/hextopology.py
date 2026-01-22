@@ -87,3 +87,9 @@ def hex_reachable_in_steps(start: HexCoord, steps: int) -> List[HexCoord]:
         for r in range(r1, r2 + 1):
             reachable.add(start + HexCoord(q, r))
     return list(reachable)
+
+
+def hex_distance(a: HexCoord, b: HexCoord) -> int:
+    dq = a.q - b.q
+    dr = a.r - b.r
+    return (abs(dq) + abs(dr) + abs(dq + dr)) // 2

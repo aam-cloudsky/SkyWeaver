@@ -4,6 +4,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import threading
 from shapely import Point
 from skyweaver.core.bus.reserved_id_enum import ReservedIDs
+from skyweaver.discretization.grid.base_grid import BaseGrid
+from skyweaver.discretization.grid.null_grid import NullGrid
 from skyweaver.instance_segmentation.geometry.cluster import Cluster
 from skyweaver.tesselation.voronoi.voronoi_cell import VoronoiCell
 import networkx as nx
@@ -41,6 +43,9 @@ class AirspaceState(metaclass=ThreadSingleton):
         # Cluster-level information
         self.clusters: List[Cluster] = []
 
+        # Grid
+        self.grid: BaseGrid = NullGrid()
+
         # Voronoi and environment geometry
         self.voronoi_cells: List[VoronoiCell] = []
         self.adjacency_graph: nx.Graph = nx.Graph()
@@ -60,7 +65,6 @@ class AirspaceState(metaclass=ThreadSingleton):
         self.message_hub: MessageHub = MessageHub()
         self._subscribe_to_topics()
 
-        #Grid
         
 
     # ------------------------------------------------------------------

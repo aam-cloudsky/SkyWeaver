@@ -38,3 +38,7 @@ build-backend = "poetry.core.masonry.api"
 packages = [
     { include = "skyweaver", from = "src" }
 ]
+
+
+[tool.poetry.extras]
+graph = ["python-igraph"]

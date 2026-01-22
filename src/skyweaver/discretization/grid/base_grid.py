@@ -20,3 +20,13 @@ class BaseGrid(ABC):
     def get_domain(self) -> Tuple[Tuple[float, float], Tuple[float, float]]:
         """Get the cell at given cartesian coordinates"""
         pass
+
+    @abstractmethod
+    def neighbors(self, cell: BaseCell) -> List[BaseCell]:
+        """Get the neighboring cells of a given cell"""
+        pass
+    
+    @abstractmethod
+    def lower_bound_steps(self, a: BaseCell, b: BaseCell) -> float:
+        """Estimate the minimum number of steps between two cells"""
+        return 1  # Default implementation; override in subclasses

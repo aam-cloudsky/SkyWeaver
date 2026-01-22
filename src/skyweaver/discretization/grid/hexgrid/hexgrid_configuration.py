@@ -1,8 +1,9 @@
 # src/skyweaver/tessellation/hexgrid/hexgrid_configuration.py
 
 import networkx as nx
+from skyweaver.discretization.grid.base_grid import BaseGrid
+from skyweaver.discretization.grid.null_grid import NullGrid
 from skyweaver.instance_segmentation.geometry.cluster import Cluster
-from skyweaver.discretization.grid.hexgrid.hexcell import HexCell
 
 from dataclasses import dataclass, field
 from typing import List, Tuple
@@ -21,6 +22,7 @@ class HexGridConfiguration(BaseConfiguration):
     domain: Tuple[Tuple[float, float], Tuple[float, float]] = field(default=((-1000, 1000), (-1000, 1000)))
     clusters: List[Cluster] = field(default_factory=list)
     cell_size: float = field(default=100.0)
+    grid: BaseGrid = field(default_factory=NullGrid)
 
 
 

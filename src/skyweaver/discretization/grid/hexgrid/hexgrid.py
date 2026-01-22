@@ -2,6 +2,7 @@ from math import ceil, floor
 from typing import List, Optional, Tuple
 
 from shapely import Point
+from skyweaver.discretization.grid.base_cell import BaseCell
 from skyweaver.discretization.grid.hexgrid.hexcoord import HexCoord
 from skyweaver.discretization.grid.hexgrid.hexgrid_configuration import (
     HexGridConfiguration,
@@ -23,6 +24,12 @@ from skyweaver.discretization.grid.base_grid import BaseGrid
 from skyweaver.instance_segmentation.geometry.cluster import Cluster
 
 
+from skyweaver.discretization.grid.base_grid import BaseGrid
+from skyweaver.discretization.grid.hexgrid.hextopology import neighbors as hexgrid_neighbors
+from skyweaver.discretization.grid.hexgrid.hexcoord import HexCoord
+from typing import Dict
+
+from skyweaver.discretization.grid.hexgrid.hextopology import hex_distance
 class HexGrid(BaseGrid):
     """
     Container for hexagonal cells indexed by HexCoord.
@@ -36,19 +43,21 @@ class HexGrid(BaseGrid):
 
         # self._cell_size: float = cell_size
         with self.config:
-            self.cell_size = cell_size
+            self.config.cell_size = cell_size
+            self.config.grid = self
 
     # =======================================================
     # Private Functions
     # =======================================================
 
     def _create_cell(self, coord: HexCoord) -> HexCell:
-        cell = HexCell(coord=coord, _size=self.config.cell_size)
-        cell.navigable = self._compute_navigability(cell)
+        cell = HexCell(coord=coord, size=self.config.cell_size)
+        cell.set_available() if self._compute_availability(cell) else cell.set_unavailable()
+
         self._cells[coord] = cell
         return cell
 
-    def _get_cell_from_coord(self, coord: HexCoord) -> Optional[HexCell]:
+    def get_cell_from_coord(self, coord: HexCoord) -> Optional[HexCell]:
         if not self._coord_inside_domain(
             coord, self.config.cell_size, self.config.domain
         ):
@@ -76,7 +85,7 @@ class HexGrid(BaseGrid):
         """Check if the distance between two points is within a threshold."""
         return point_a.distance(point_b) <= threshold
 
-    def _compute_navigability(self, cell: HexCell) -> bool:
+    def _compute_availability(self, cell: HexCell) -> bool:
         for cluster in self.config.clusters:
 
             # Fast rejection
@@ -123,7 +132,7 @@ class HexGrid(BaseGrid):
     def get_cell_from_cartesian(self, x: float, y: float) -> Optional[HexCell]:
         coord = pixel_to_pointy_hex(x, y, self.config.cell_size)
 
-        return self._get_cell_from_coord(coord)
+        return self.get_cell_from_coord(coord)
 
     def iter_domain_cells(self) -> Iterable[HexCell]:
         """
@@ -152,11 +161,28 @@ class HexGrid(BaseGrid):
 
         for q in range(q_min, q_max + 1):
             for r in range(r_min, r_max + 1):
-                cell = self._get_cell_from_coord(HexCoord(q, r))
+                cell = self.get_cell_from_coord(HexCoord(q, r))
                 if cell is not None:
-                    print(f"Yielding cell at HexCoord({q}, {r})")
+                    #print(f"Yielding cell at HexCoord({q}, {r})")
                     yield cell
 
+    def neighbors(self, cell: HexCell) -> List[BaseCell]:
+        coords = hexgrid_neighbors(cell.coord)
+
+        neighborhood: list[BaseCell] = []
+        for c in coords:
+            nb = self.get_cell_from_coord(c)
+            if nb is not None:
+                neighborhood.append(nb)
+
+        return neighborhood 
+
+    def lower_bound_steps(self, a: HexCell, b: HexCell) -> float:
+        """Estimate the minimum number of steps between two cells"""
+
+        min_distance: int = hex_distance(a.coord, b.coord)
+        return min_distance  # Default implementation; override in subclasses
+        
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
@@ -166,7 +192,7 @@ if __name__ == "__main__":
     # 1. Build a simple configuration
     # ------------------------------------------------------------
 
-    grid = HexGrid()
+    grid = HexGrid(cell_size=100.0)
     cells = grid.iter_domain_cells()
 
     # print(f"Generated hex grid with {len(cells)} cells.")
@@ -228,3 +254,6 @@ if __name__ == "__main__":
     ax.set_title(f"HexGrid validation (pointy-top, size = {grid.config.cell_size})")
 
     plt.show()
+
+
+
