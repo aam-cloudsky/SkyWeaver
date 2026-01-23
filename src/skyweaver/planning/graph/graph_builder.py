@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Dict, List, Tuple
+from typing import AbstractSet, Dict, List, Tuple
 from skyweaver.discretization.grid.base_cell import BaseCell
 
 from skyweaver.planning.graph.graph_configuration import GraphConfiguration
@@ -89,15 +89,15 @@ class GraphBuilder:
             one per path, carrying full path and cost
         """
 
-        g1 = ig.Graph(directed=False)
+        g2 = ig.Graph(directed=False)
 
         cell_to_vid: Dict[BaseCell, int] = {}
         vid_to_cell: Dict[int, BaseCell] = {}
 
         def get_vid(cell: BaseCell) -> int:
             if cell not in cell_to_vid:
-                vid = g1.vcount()
-                g1.add_vertex()
+                vid = g2.vcount()
+                g2.add_vertex()
                 cell_to_vid[cell] = vid
                 vid_to_cell[vid] = cell
             return cell_to_vid[cell]
@@ -113,13 +113,76 @@ class GraphBuilder:
             v_start = get_vid(start)
             v_end = get_vid(end)
 
-            g1.add_edge(
+            g2.add_edge(
                 v_start,
                 v_end,
                 weight=cost,
                 path=path_cells,
             )
 
+        g2["cell_to_vertex_id"] = cell_to_vid
+        g2["vertex_id_to_cell"] = vid_to_cell
+
+        return g2
+    
+    def build_paths_graph(
+        self,
+        paths: List[List[BaseCell]],
+    ) -> ig.Graph:
+        """
+        Build a graph induced by the given paths.
+
+        - Each vertex represents a BaseCell appearing in any path
+        - Each edge represents adjacency along a path
+        - Vertex attribute:
+            - cell: BaseCell
+            - is_terminal: bool (True if cell is start or end of any path)
+        """
+
+        g1 = ig.Graph(directed=False)
+
+        cell_to_vid: Dict[BaseCell, int] = {}
+        vid_to_cell: Dict[int, BaseCell] = {}
+
+        terminals: set[BaseCell] = set()
+
+        # --------------------------------------------------
+        # 1. Identify terminals
+        # --------------------------------------------------
+        for path in paths:
+            if not path:
+                continue
+            terminals.add(path[0])
+            terminals.add(path[-1])
+
+        # --------------------------------------------------
+        # 2. Vertex creation helper
+        # --------------------------------------------------
+        def get_vid(cell: BaseCell) -> int:
+            if cell not in cell_to_vid:
+                vid = g1.vcount()
+                g1.add_vertex(
+                    cell=cell,
+                    is_terminal=(cell in terminals),
+                )
+                cell_to_vid[cell] = vid
+                vid_to_cell[vid] = cell
+            return cell_to_vid[cell]
+
+        # --------------------------------------------------
+        # 3. Add edges from paths
+        # --------------------------------------------------
+        for path in paths:
+            for a, b in zip(path[:-1], path[1:]):
+                va = get_vid(a)
+                vb = get_vid(b)
+
+                if not g1.are_connected(va, vb):
+                    g1.add_edge(va, vb)
+
+        # --------------------------------------------------
+        # 4. Store mappings
+        # --------------------------------------------------
         g1["cell_to_vertex_id"] = cell_to_vid
         g1["vertex_id_to_cell"] = vid_to_cell
 
