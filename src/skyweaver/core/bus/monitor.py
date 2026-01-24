@@ -9,6 +9,7 @@ from rich.text import Text
 
 from skyweaver.core.bus.message_context import MessageContext
 from skyweaver.core.bus.messages.base_message import BaseMessage
+from skyweaver.core.bus.messages.lifecycle_message import ServiceReady
 from skyweaver.core.bus.reserved_id_enum import ReservedIDs
 from skyweaver.core.bus.topics_enum import TopicsEnum
 
@@ -94,6 +95,11 @@ class EventMonitor:
     ):
         if not self.enabled:
             return
+        
+        if isinstance(message, ServiceReady):
+            self._print_service_ready(message, context)
+            return
+
 
         # SEMPRE cria um trace novo
         self._traces[context.trace_id] = TraceRecord(
@@ -189,6 +195,31 @@ class EventMonitor:
 
         self.console.print(line)
 
+    def _print_service_ready(self, message, context):
+        line = Text()
+
+        # Status dot (sempre verde)
+        line.append("● ", style="green")
+
+        # Topic
+        line.append(f"{TopicsEnum.LIFECYCLE.name:<12} ", style="cyan")
+
+        # Placeholder de trace (fixa alinhamento)
+        line.append(f"{'(ready)':<14} ", style="grey50")
+
+        # Actor
+        origin_id = context.from_id
+        origin = self._resolve_id(origin_id)
+        line.append(origin)
+
+        # Textual hint (depends on reserved ID)
+        if origin_id in (r.value for r in ReservedIDs):
+            line.append(" is alive", style="bold green")
+        else:
+            line.append(" joined", style="bold cyan")
+
+        self.console.print(line)
+
 
 
     # ------------------------------------------------------------------
@@ -211,3 +242,4 @@ class EventMonitor:
         t = Text("UNKNOWN", style="red")
         t.append(f"#{pid}", style="grey50")
         return t
+

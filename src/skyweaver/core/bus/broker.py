@@ -64,17 +64,8 @@ class Broker:
                 subscribers[to_id](message, message_context)
                 delivered = True
             except Exception as e:
-                print(f"[BROKER][WARN] Subscriber {to_id} failed: {e}")
-
-        else:
-            print(
-                "[BROKER][WARN] Message NOT delivered | "
-                f"topic={topic.name} "
-                f"from={self._format_id(message_context.from_id)} "
-                f"to={self._format_id(to_id)} "
-                f"known_subscribers={[self._format_id(k) for k in subscribers.keys()]}"
-            )
-
+                #print(f"[BROKER][WARN] Subscriber {to_id} failed: {e}")
+                delivered = False
 
         if self._monitor:
             self._monitor.on_deliver(

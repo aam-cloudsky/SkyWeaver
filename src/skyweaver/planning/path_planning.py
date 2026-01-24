@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple
 import igraph as ig
 
+from skyweaver.core.logistics.depot import Depot
 from skyweaver.discretization.grid.base_cell import BaseCell
 from itertools import combinations
 
@@ -96,7 +97,7 @@ if __name__ == "__main__":
     from skyweaver.planning.graph.graph_builder import GraphBuilder
 
     random.seed(42)
-
+    depot = Depot()
     # ======================================================
     # 1. Build grid
     # ======================================================

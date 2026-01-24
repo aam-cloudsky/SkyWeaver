@@ -4,10 +4,12 @@ from typing import Any, Dict, Optional, Tuple, cast
 import threading
 
 from skyweaver.core.bus.messages.base_message import BaseMessage
+from skyweaver.core.bus.messages.lifecycle_message import ServiceReady, TerminationMessage
 from skyweaver.core.bus.reserved_id_enum import ReservedIDs
 
 
 from skyweaver.core.bus.message_hub import MessageHub, TopicsEnum, MessageContext
+from skyweaver.core.logistics.lifecycle import Lifecycle
 from skyweaver.core.logistics.parcel import Parcel, EmptyParcel
 from skyweaver.core.logistics.depot_messages import DepotGet, DepotSet, DepotUpdate
 
@@ -43,6 +45,11 @@ class Depot(metaclass=ThreadSingleton):
         self.publisher_id = ReservedIDs.DEPOT.value
         self.message_hub: MessageHub = MessageHub()
         self._subscribe_to_topics()
+
+        self.lifecycle = Lifecycle(self.message_hub)
+        self.lifecycle._lifecycle_ready(self.publisher_id)
+
+
 
     # ------------------------------------------------------------------
     # Parcel Management

@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field, fields
+from skyweaver.core.logistics.lifecycle import Lifecycle
 from skyweaver.core.logistics.parcel import Parcel, EmptyParcel
 from skyweaver.core.bus.message_hub import MessageHub, TopicsEnum, MessageContext
 from skyweaver.core.logistics.depot_messages import (
@@ -23,6 +24,9 @@ class Outpost:
     def __post_init__(self):
         self._message_hub = MessageHub()
         self._publisher_id = self._message_hub.register_publisher(owner=self)
+        self._lifecycle = Lifecycle(self._message_hub)
+        self._lifecycle._lifecycle_ready(self._publisher_id)
+        
 
         # Subscribe to parcel updates
         self._message_hub.subscribe(
@@ -42,6 +46,10 @@ class Outpost:
             self._request_parcel(type(parcel))
 
         object.__setattr__(self, "_transaction_open", False)
+
+        
+
+
 
     # ------------------------------------------------------------------
     # Parcel discovery

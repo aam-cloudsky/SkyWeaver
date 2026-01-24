@@ -20,7 +20,10 @@ class MessageHub:
         if not hasattr(cls._thread_local_data, '_instance'):
             cls._thread_local_data._instance = super(MessageHub, cls).__new__(cls)
             cls._thread_local_data._instance._initialize()
-            cls._ensure_depot_registered()
+            #cls._ensure_depot_registered()
+            print("[MessageHub] Initialized thread-local singleton instance.")
+            print(f"[MessageHub] Please, ensure Depot is alive and subscribed.")
+            # now, you have to instantiate Depot somewhere else!
         return cls._thread_local_data._instance
             
     def _initialize(self) -> None:
@@ -41,15 +44,15 @@ class MessageHub:
         self.monitor.set_enabled(value)
 
 
-    @staticmethod
-    def _ensure_depot_registered():
-        """Guarantee Depot is instantiated and subscribed."""
-        try:
+    #@staticmethod
+    #def _ensure_depot_registered():
+    #    """Guarantee Depot is instantiated and subscribed."""
+    #    try:
             
-            from skyweaver.core.logistics.depot import Depot
-            Depot()  # triggers __init__ and subscription once
-        except Exception as e:
-            print(f"[WARN] Could not auto-register Depot: {e}")
+    #        from skyweaver.core.logistics.depot import Depot
+            #Depot()  # triggers __init__ and subscription once
+    #    except Exception as e:
+    #        print(f"[WARN] Could not auto-register Depot: {e}")
 
     # ==========================================================
     # Publisher Management
@@ -141,7 +144,7 @@ class MessageHub:
 
         broker = self._brokers.get(topic)
         if not broker:
-            print(f"[MESSAGEHUB WARN] No subscribers for topic {topic.name}")
+            #print(f"[MESSAGEHUB WARN] No subscribers for topic {topic.name}")
             return
 
         self._register_publisher_topic(topic, message_context.from_id)

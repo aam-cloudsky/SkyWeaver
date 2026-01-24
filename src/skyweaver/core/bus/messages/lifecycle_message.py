@@ -8,3 +8,8 @@ from typing import Optional
 @dataclass(frozen=True)
 class TerminationMessage(BaseMessage):
     pass
+
+
+@dataclass(frozen=True)
+class ServiceReady(BaseMessage):
+    pass
