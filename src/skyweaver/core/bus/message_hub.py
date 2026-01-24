@@ -1,12 +1,15 @@
 
 
-from dataclasses import field
+from dataclasses import dataclass, field
 from enum import auto
 from typing import Dict, Callable, List, Optional
 import threading
 
 from skyweaver.core.bus.broker import Broker
 from skyweaver.core.bus.message_context import MessageContext
+from skyweaver.core.bus.messages.base_message import BaseMessage
+from skyweaver.core.bus.messages.lifecycle_message import TerminationMessage
+from skyweaver.core.bus.monitor import EventMonitor
 from skyweaver.core.bus.reserved_id_enum import ReservedIDs
 from skyweaver.core.bus.topics_enum import TopicsEnum
 
@@ -17,7 +20,7 @@ class MessageHub:
         if not hasattr(cls._thread_local_data, '_instance'):
             cls._thread_local_data._instance = super(MessageHub, cls).__new__(cls)
             cls._thread_local_data._instance._initialize()
-            cls._ensure_airspace_state_registered()
+            cls._ensure_depot_registered()
         return cls._thread_local_data._instance
             
     def _initialize(self) -> None:
@@ -27,21 +30,26 @@ class MessageHub:
         self._brokers: Dict[TopicsEnum, Broker] = {}
         self._publishers_dict: Dict[int, List[TopicsEnum]] = {}
 
+        self.monitor = EventMonitor()
+        self.enable_monitoring()
+
         SYSTEM_ID_OFFSET: int = max(r.value for r in ReservedIDs) + 10
         self.last_publisher_id_generated: int = SYSTEM_ID_OFFSET
 
-        
 
-        
+    def enable_monitoring(self, value: bool = True):
+        self.monitor.set_enabled(value)
+
 
     @staticmethod
-    def _ensure_airspace_state_registered():
-        """Guarantee AirspaceState is instantiated and subscribed."""
+    def _ensure_depot_registered():
+        """Guarantee Depot is instantiated and subscribed."""
         try:
-            from skyweaver.airspace.airspace_state import AirspaceState
-            AirspaceState()  # triggers __init__ and subscription once
+            
+            from skyweaver.core.logistics.depot import Depot
+            Depot()  # triggers __init__ and subscription once
         except Exception as e:
-            print(f"[WARN] Could not auto-register AirspaceState: {e}")
+            print(f"[WARN] Could not auto-register Depot: {e}")
 
     # ==========================================================
     # Publisher Management
@@ -49,11 +57,18 @@ class MessageHub:
     # - Unregister: cleanup topics and send termination messages
     # ==========================================================
 
-    def register_publisher(self) -> int:
+    def register_publisher(self, owner: object) -> int:
         """Register a new publisher and generate a unique ID."""
         with self._lock:
             self.last_publisher_id_generated += 1
-            return self.last_publisher_id_generated
+            pid = self.last_publisher_id_generated
+
+            self.monitor.add_publisher(publisher_id=pid, owner=owner)
+            
+            return pid
+        
+
+
 
     def _unregister_publisher(self, publisher_id: int):
         """Unregister a publisher and send termination messages to all its topics."""
@@ -62,12 +77,31 @@ class MessageHub:
         message_context = self.create_message_context(from_id=publisher_id)
 
         for topic in topics:
-            self.publish(topic=topic,
-                         message={"termination": True},
-                         message_context=message_context)
+            self._publish_termination(topic, message_context)
 
         if publisher_id in self._publishers_dict:
             del self._publishers_dict[publisher_id]
+
+    def _unregister_publisher_topic(self, topic: TopicsEnum, publisher_id: int):
+        """Unregister a publisher and send termination messages to all its topics."""
+
+        message_context = self.create_message_context(from_id=publisher_id)
+
+        self._publish_termination(topic, message_context)
+
+        # Remove the topic from the list of topics for the publisher
+        if publisher_id in self._publishers_dict:
+            topics = self._publishers_dict[publisher_id]
+            if topic in topics:
+                topics.remove(topic)
+
+    def _publish_termination(self, topic: TopicsEnum, message_context: MessageContext):
+        """Publish a termination message to a specific topic."""
+        self.publish(
+            topic=topic,
+            message=TerminationMessage(),
+            message_context=message_context
+        )
 
     def _register_publisher_topic(self, topic: TopicsEnum, publisher_id: int):
         """Register a publisher for a specific topic."""
@@ -77,19 +111,7 @@ class MessageHub:
         if topic not in self._publishers_dict[publisher_id]:
             self._publishers_dict[publisher_id].append(topic)
 
-    def _unregister_publisher_topic(self, topic: TopicsEnum, publisher_id: int):
-        """Unregister a publisher and send termination messages to all its topics."""
-
-        message_context = self.create_message_context(from_id=publisher_id)
-
-        self.publish(topic=topic, message={
-                     "termination": True}, message_context=message_context)
-
-        # Remove the topic from the list of topics for the publisher
-        if publisher_id in self._publishers_dict:
-            topics = self._publishers_dict[publisher_id]
-            if topic in topics:
-                topics.remove(topic)
+    
 
     # ==========================================================
     # Broker Management
@@ -97,8 +119,7 @@ class MessageHub:
     # ==========================================================
 
 
-
-    def subscribe(self, topic: TopicsEnum, publisher_id: int, subscriber: Callable[[Dict, MessageContext], None]) -> None:
+    def subscribe(self, topic: TopicsEnum, publisher_id: int, subscriber: Callable[[BaseMessage, MessageContext], None]) -> None:
         """Subscribe to a specific topic."""
         self._get_broker(topic).subscribe(topic, publisher_id, subscriber)
 
@@ -109,10 +130,18 @@ class MessageHub:
         """Unsubscribe from a specific topic."""
         self._get_broker(topic).unsubscribe(topic, publisher_id)
 
-    def publish(self, topic: TopicsEnum, message: Dict, message_context: MessageContext) -> None:
+    def publish(self, topic: TopicsEnum, message: BaseMessage, message_context: MessageContext) -> None:
+
+        if self.monitor:
+            self.monitor.on_emit(
+                topic=topic,
+                message=message,
+                context=message_context,
+            )
+
         broker = self._brokers.get(topic)
         if not broker:
-            print(f"[WARN] No subscribers for topic {topic.name}")
+            print(f"[MESSAGEHUB WARN] No subscribers for topic {topic.name}")
             return
 
         self._register_publisher_topic(topic, message_context.from_id)
@@ -121,7 +150,7 @@ class MessageHub:
 
     def _get_broker(self, topic: TopicsEnum) -> Broker:
         """Get or create a broker for a specific topic."""
-        return self._brokers.setdefault(topic, Broker())
+        return self._brokers.setdefault(topic, Broker(monitor=self.monitor))
 
    
 
@@ -144,7 +173,3 @@ class MessageHub:
         else:
             # Terminate all topics for the publisher
             self._unregister_publisher(publisher_id)
-
-
-    
-

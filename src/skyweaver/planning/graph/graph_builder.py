@@ -2,22 +2,26 @@ from abc import abstractmethod
 from typing import AbstractSet, Dict, List, Tuple
 from skyweaver.discretization.grid.base_cell import BaseCell
 
-from skyweaver.planning.graph.graph_configuration import GraphConfiguration
+from skyweaver.discretization.grid.grid_parcel import GridParcel
+from skyweaver.planning.graph.graph_outpost import GraphOutpost
 import igraph as ig
 from skyweaver.discretization.grid.base_grid import BaseGrid
 
 class GraphBuilder:
     """
     Builds an explicit graph representation from the current AirspaceState
-    and synchronizes it via GraphConfiguration.
+    and synchronizes it via GraphOutpost.
     """
 
-    def __init__(self, config: GraphConfiguration):
+    def __init__(self, outpost: GraphOutpost):
         # Configuration is an access façade, not an external dependency
-        self.config: GraphConfiguration = config
+        self.outpost: GraphOutpost = outpost
 
-    def build(self) -> ig.Graph:
-        return self._build_graph_from_grid(self.config.grid)
+    def build_navigation_graph(self) -> ig.Graph:
+        """
+        Build navigation graph (G3) from current grid in outpost.
+        """
+        return self._build_graph_from_grid(self.outpost.grid_parcel.grid)
 
     def _build_graph_from_grid(self, grid: BaseGrid) -> ig.Graph:
 
@@ -75,12 +79,12 @@ class GraphBuilder:
 
         return graph
     
-    def build_terminals_graph_from_paths(
+    def build_terminal_graph(
         self,
         paths: List[Tuple[List[BaseCell], float]]
     ) -> ig.Graph:
         """
-        Build terminal graph (G1) from path results.
+        Build terminal graph (G2) from path results.
 
         Vertices:
             unique path endpoints
@@ -125,12 +129,12 @@ class GraphBuilder:
 
         return g2
     
-    def build_paths_graph(
+    def build_path_induced_graph(
         self,
         paths: List[List[BaseCell]],
     ) -> ig.Graph:
         """
-        Build a graph induced by the given paths.
+        Build a graph induced (G1) by the given paths.
 
         - Each vertex represents a BaseCell appearing in any path
         - Each edge represents adjacency along a path
@@ -204,11 +208,11 @@ if __name__ == "__main__":
     grid = HexGrid(cell_size=100.0)
     t_grid_end = time.perf_counter()
 
-    config = GraphConfiguration()
-    builder = GraphBuilder(config)
+    outpost = GraphOutpost()
+    builder = GraphBuilder(outpost=outpost)
 
     t_graph_start = time.perf_counter()
-    graph = builder.build()
+    graph = builder.build_navigation_graph()
     t_graph_end = time.perf_counter()
 
     num_vertices = graph.vcount()

@@ -1,7 +1,7 @@
 # src/skyweaver/scenarios/components/instance_segmentation/clustering/hdbscan_clustering.py
 
 from __future__ import annotations
-from typing import List
+from typing import List, cast
 
 
 import numpy as np
@@ -14,7 +14,7 @@ from skyweaver.core.enums.zone_type import ZoneType
 from skyweaver.instance_segmentation.geometry.cluster import Cluster
 from skyweaver.instance_segmentation.clustering.base_clustering import BaseClustering
 from skyweaver.instance_segmentation.clustering.cluster_shape_builder import ClusterShapeBuilder
-from skyweaver.instance_segmentation.clustering.cluster_configuration import ClusterConfiguration
+from skyweaver.instance_segmentation.clustering.cluster_outpost import ClusterOutpost
 
 
 
@@ -107,60 +107,93 @@ class HDBSCANClustering(BaseClustering):
     # Public API
     # ------------------------------------------------------
 
-    def fit(self) -> ClusterConfiguration:
-        """Compute HDBSCAN clusters for UAV and MAV."""
+    def fit(self) -> ClusterOutpost:
+        outpost = ClusterOutpost()
 
-        config = ClusterConfiguration()
-        uav_clusters = self._fit_points(config.uav_points or [], ZoneType.UAV)
-        mav_clusters = self._fit_points(config.mav_points or [], ZoneType.MAV)
+        clustering = outpost.airspace_points
 
-        with config:
-            config.clusters = uav_clusters + mav_clusters
+        uav_clusters = self._fit_points(
+            clustering.uav_points or [], ZoneType.UAV
+        )
+        mav_clusters = self._fit_points(
+            clustering.mav_points or [], ZoneType.MAV
+        )
 
-        return config
+        with outpost:
+            outpost.cluster_parcel.clusters = uav_clusters + mav_clusters
+
+        return outpost
 
 
 # ==========================================================
 # Stand-alone demo
 # ==========================================================
+# ==========================================================
+# Stand-alone demo (manual integration test)
+# ==========================================================
 if __name__ == "__main__":
-    from skyweaver.airspace.airspace_state import AirspaceState
-
-    print("USE DISTRIBUTION TO POIs TO GENERATE CLUSTERS")
+    import matplotlib.pyplot as plt
     from skyweaver.distributions.uav_mav_uav_distribution import UAVMAVUAVDistribution
-    #rng = np.random.default_rng(42)
-    #scenario = Di(rng)
-    
+
+    # ------------------------------------------------------
+    # 1. Initialize AirspaceState (singleton)
+    # ------------------------------------------------------
+
+    # ------------------------------------------------------
+    # 2. Generate synthetic UAV / MAV points
+    #    (this is expected to publish components internally)
+    # ------------------------------------------------------
     rng = np.random.default_rng(42)
-    distribution = UAVMAVUAVDistribution(
+
+    UAVMAVUAVDistribution(
         rng=rng,
         n_uav=20,
         n_mav=10,
         domain=((-1000, 1000), (-1000, 1000)),
         center_fraction=0.3,
     )
-    
-    clustering = HDBSCANClustering()
-    config = clustering.fit()
-    
-    state = AirspaceState()
+
+    # ------------------------------------------------------
+    # 3. Run clustering algorithm
+    # ------------------------------------------------------
+    clustering_algo = HDBSCANClustering()
+    clustering_algo.fit()
+
+    # ------------------------------------------------------
+    # 4. Retrieve clustering component from AirspaceState
+    # ------------------------------------------------------
+    cluster_outpost = ClusterOutpost()
+    clusters = cluster_outpost.cluster_parcel.clusters
+
+
+    # ------------------------------------------------------
+    # 5. Visualization
+    # ------------------------------------------------------
     plt.figure(figsize=(8, 8))
     plt.title("HDBSCAN Clusters (UAV + MAV)")
     plt.xlabel("X")
     plt.ylabel("Y")
 
-    for cluster in state.clusters:
+    for cluster in clusters:
+
         arr = np.array([[p.x, p.y] for p in cluster.source_points])
         color = "blue" if cluster.zone_type == ZoneType.UAV else "red"
+
         plt.scatter(arr[:, 0], arr[:, 1], color=color, s=50, alpha=0.7)
 
-        # Plot polygon boundary
+        # Cluster boundary
         x, y = cluster.polygon.exterior.xy
         plt.plot(x, y, color=color, linewidth=1.5)
 
-        # Plot centroid
-        plt.scatter(cluster.centroid.x, cluster.centroid.y,
-                    color="yellow", marker="*", s=150, edgecolor="black")
+        # Centroid
+        plt.scatter(
+            cluster.centroid.x,
+            cluster.centroid.y,
+            color="yellow",
+            marker="*",
+            s=150,
+            edgecolor="black",
+        )
 
     plt.axis("equal")
     plt.tight_layout()

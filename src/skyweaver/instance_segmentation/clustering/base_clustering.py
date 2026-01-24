@@ -2,7 +2,7 @@ from abc import abstractmethod
 from typing import List
 
 from shapely import Point
-from skyweaver.instance_segmentation.clustering.cluster_configuration import ClusterConfiguration
+from skyweaver.instance_segmentation.clustering.cluster_outpost import ClusterOutpost
 
 
 
@@ -19,7 +19,7 @@ class BaseClustering():
     # ==========================================================
 
     @abstractmethod
-    def fit(self) -> ClusterConfiguration:
+    def fit(self) -> ClusterOutpost:
         pass
 
     @abstractmethod

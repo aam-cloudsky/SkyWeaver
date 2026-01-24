@@ -92,7 +92,7 @@ if __name__ == "__main__":
     from matplotlib.patches import Polygon as MplPolygon
 
     from skyweaver.discretization.grid.hexgrid.hexgrid import HexGrid
-    from skyweaver.planning.graph.graph_configuration import GraphConfiguration
+    from skyweaver.planning.graph.graph_outpost import GraphOutpost
     from skyweaver.planning.graph.graph_builder import GraphBuilder
 
     random.seed(42)
@@ -124,9 +124,9 @@ if __name__ == "__main__":
     # ======================================================
     # 4. Build base graph (G0)
     # ======================================================
-    config = GraphConfiguration()
-    builder = GraphBuilder(config)
-    base_graph = builder.build()
+    outpost = GraphOutpost()
+    builder = GraphBuilder(outpost=outpost)
+    base_graph = builder.build_navigation_graph()
     planner = PathPlanning(base_graph)
 
     print(
@@ -230,7 +230,7 @@ if __name__ == "__main__":
         # --------------------------------------------------
         # Build paths graph (G1 → G2)
         # --------------------------------------------------
-        g2 = builder.build_paths_graph(paths)
+        g2 = builder.build_path_induced_graph(paths)
 
         # --------------------------------------------------
         # Plot G2 edges

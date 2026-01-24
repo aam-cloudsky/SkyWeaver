@@ -4,8 +4,8 @@ from typing import List, Optional, Tuple
 from shapely import Point
 from skyweaver.discretization.grid.base_cell import BaseCell
 from skyweaver.discretization.grid.hexgrid.hexcoord import HexCoord
-from skyweaver.discretization.grid.hexgrid.hexgrid_configuration import (
-    HexGridConfiguration,
+from skyweaver.discretization.grid.hexgrid.hexgrid_outpost import (
+    HexGridOutpost,
 )
 
 from typing import Dict, Iterable
@@ -38,20 +38,20 @@ class HexGrid(BaseGrid):
 
     def __init__(self, cell_size: float = 1.0):
 
-        self.config: HexGridConfiguration = HexGridConfiguration()
+        self.outpost: HexGridOutpost = HexGridOutpost()
         self._cells: Dict[HexCoord, HexCell] = {}
 
         # self._cell_size: float = cell_size
-        with self.config:
-            self.config.cell_size = cell_size
-            self.config.grid = self
+        with self.outpost:
+            self.outpost.grid_parcel.cell_size = cell_size
+            self.outpost.grid_parcel.grid = self
 
     # =======================================================
     # Private Functions
     # =======================================================
 
     def _create_cell(self, coord: HexCoord) -> HexCell:
-        cell = HexCell(coord=coord, size=self.config.cell_size)
+        cell = HexCell(coord=coord, size=self.outpost.grid_parcel.cell_size)
         cell.set_available() if self._compute_availability(cell) else cell.set_unavailable()
 
         self._cells[coord] = cell
@@ -59,7 +59,7 @@ class HexGrid(BaseGrid):
 
     def get_cell_from_coord(self, coord: HexCoord) -> Optional[HexCell]:
         if not self._coord_inside_domain(
-            coord, self.config.cell_size, self.config.domain
+            coord, self.outpost.grid_parcel.cell_size, self.outpost.airspace_points.domain
         ):
             return None
 
@@ -86,7 +86,7 @@ class HexGrid(BaseGrid):
         return point_a.distance(point_b) <= threshold
 
     def _compute_availability(self, cell: HexCell) -> bool:
-        for cluster in self.config.clusters:
+        for cluster in self.outpost.cluster_parcel.clusters:
 
             # Fast rejection
             if not self._is_within_risky_area(cell, cluster):
@@ -127,10 +127,10 @@ class HexGrid(BaseGrid):
     # =======================================================
 
     def get_domain(self) -> Tuple[Tuple[float, float], Tuple[float, float]]:
-        return self.config.domain
+        return self.outpost.airspace_points.domain
 
     def get_cell_from_cartesian(self, x: float, y: float) -> Optional[HexCell]:
-        coord = pixel_to_pointy_hex(x, y, self.config.cell_size)
+        coord = pixel_to_pointy_hex(x, y, self.outpost.grid_parcel.cell_size)
 
         return self.get_cell_from_coord(coord)
 
@@ -141,8 +141,8 @@ class HexGrid(BaseGrid):
         Cells are created on-demand during iteration.
         Intended for debugging / visualization only.
         """
-        (xmin, xmax), (ymin, ymax) = self.config.domain
-        size = self.config.cell_size
+        (xmin, xmax), (ymin, ymax) = self.outpost.airspace_points.domain
+        size = self.outpost.grid_parcel.cell_size
 
         corners = [
             pixel_to_pointy_hex_frac(xmin, ymin, size),
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     ax.grid(False)
     ax.grid(False)
     ax.legend()
-    ax.set_title(f"HexGrid validation (pointy-top, size = {grid.config.cell_size})")
+    ax.set_title(f"HexGrid validation (pointy-top, size = {grid.outpost.grid_parcel.cell_size})")
 
     plt.show()
 

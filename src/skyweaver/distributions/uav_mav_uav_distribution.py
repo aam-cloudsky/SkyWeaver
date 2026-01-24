@@ -1,12 +1,9 @@
 from typing import Optional
 import numpy as np
-from shapely import Point
-
-
+from shapely.geometry import Point
 
 from skyweaver.distributions.base_distribution import BaseDistribution
-from skyweaver.distributions.distribution_configuration import DistributionConfiguration
-
+from skyweaver.distributions.distribution_outpost import DistributionOutpost
 
 
 class UAVMAVUAVDistribution(BaseDistribution):
@@ -31,31 +28,40 @@ class UAVMAVUAVDistribution(BaseDistribution):
         self._center_fraction = center_fraction
         self._rng = rng
 
-        _config = self.generate_points()
-        super().__init__(config=_config, rng=rng)
+        # BaseDistribution agora cria sua própria view do Depot
+        super().__init__(rng=rng)
+
+        # Gera e escreve no Depot
+        self.generate_points()
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
     def reset(self, rng: Optional[np.random.Generator] = None):
         """Reinicializa o gerador aleatório e recria a configuração."""
         if rng is not None:
             self._rng = rng
-        self._config = self._setup_config(
-            self._n_uav, self._n_mav, self._domain, self._center_fraction, self._rng
+        self.generate_points()
+
+    def generate_points(self):
+        """Gera os pontos UAV e MAV e escreve no Depot."""
+        uav_points = self.generate_uav_pois(
+            self._n_uav, self._domain, self._rng
+        )
+        mav_points = self.generate_mav_pois(
+            self._n_mav, self._domain, self._center_fraction, self._rng
         )
 
-    def _setup_config(
-        self, _n_uav, _n_mav, _domain, _center_fraction, rng
-    ) -> DistributionConfiguration:
-        """Gera os POIs e armazena no DistributionConfig."""
-        uav_points = self.generate_uav_pois(_n_uav, _domain, rng)
-        mav_points = self.generate_mav_pois(_n_mav, _domain, _center_fraction, rng)
+        print(f"Generated {len(uav_points)} UAV points and {len(mav_points)} MAV points.")
+        # 🔑 Escrita correta: via Outpost → Depot
+        with DistributionOutpost() as outpost:
+            ap = outpost.airspace_points
+            ap.domain = self._domain
+            ap.uav_points = uav_points
+            ap.mav_points = mav_points
 
-        with DistributionConfiguration() as config:
-
-            config.domain = _domain
-            config.uav_points = uav_points
-            config.mav_points = mav_points
-
-        return config
+        print(f"{DistributionOutpost().airspace_points.uav_points}")
 
     # --------------------------------------------------
     # Geradores de POIs
@@ -64,28 +70,25 @@ class UAVMAVUAVDistribution(BaseDistribution):
     def generate_uav_pois(
         self, n_poi: int, domain: tuple, rng: np.random.Generator
     ) -> list[Point]:
-        """Gera UAV POIs nas extremidades, concentrados em torno de centros aleatórios."""
+        """Gera UAV POIs nas extremidades."""
         (x_min, x_max), (y_min, y_max) = domain
         half = n_poi // 2
 
-        # Domínio e dispersão relativos
         x_span = x_max - x_min
         y_span = y_max - y_min
 
-        # Dispersão controlada (clusters mais compactos)
-        x_sigma = 0.05 * x_span  # 5% da largura → mais concentrado
-        y_sigma = 0.10 * y_span  # 10% da altura
+        x_sigma = 0.05 * x_span
+        y_sigma = 0.10 * y_span
 
-        # 🔹 Faixa segura para os centros (10% afastado das bordas)
         margin_x = 0.10 * x_span
         left_center_x = rng.uniform(x_min + margin_x, x_min + 0.25 * x_span)
         right_center_x = rng.uniform(x_max - 0.25 * x_span, x_max - margin_x)
 
-        # Centros em Y também levemente aleatórios, mas não muito próximos das bordas
-        center_y_left = rng.uniform(y_min + 0.25 * y_span, y_max - 0.25 * y_span)
-        center_y_right = rng.uniform(y_min + 0.25 * y_span, y_max - 0.25 * y_span)
+        center_y_left = rng.uniform(
+            y_min + 0.25 * y_span, y_max - 0.25 * y_span)
+        center_y_right = rng.uniform(
+            y_min + 0.25 * y_span, y_max - 0.25 * y_span)
 
-        # Gera pontos normais ao redor dos centros
         uav_left = np.c_[
             rng.normal(left_center_x, x_sigma, half),
             rng.normal(center_y_left, y_sigma, half),
@@ -95,9 +98,9 @@ class UAVMAVUAVDistribution(BaseDistribution):
             rng.normal(center_y_right, y_sigma, half),
         ]
 
-        # Clippa suavemente
         uavs = np.vstack([uav_left, uav_right])
-        uavs[:, 0] = np.clip(uavs[:, 0], x_min + margin_x / 2, x_max - margin_x / 2)
+        uavs[:, 0] = np.clip(uavs[:, 0], x_min +
+                             margin_x / 2, x_max - margin_x / 2)
         uavs[:, 1] = np.clip(uavs[:, 1], y_min, y_max)
 
         return [Point(x, y) for x, y in uavs]
@@ -109,20 +112,19 @@ class UAVMAVUAVDistribution(BaseDistribution):
         center_fraction: float,
         rng: np.random.Generator,
     ) -> list[Point]:
-        """Gera MAV POIs concentrados no centro, mas com alongamento vertical (em Y)."""
+        """Gera MAV POIs concentrados no centro."""
         (x_min, x_max), (y_min, y_max) = domain
         x_span = x_max - x_min
         y_span = y_max - y_min
 
-        # Centro aleatório dentro da zona central
         x_center = rng.uniform(
-            -x_span * center_fraction / 2, x_span * center_fraction / 2
+            -x_span * center_fraction / 2,
+            x_span * center_fraction / 2,
         )
         y_center = rng.uniform(-y_span * 0.1, y_span * 0.1)
 
-        # Dispersão diferente nos eixos (alongado em Y)
-        x_sigma = 0.05 * x_span  # 5% da largura
-        y_sigma = 0.25 * y_span  # 25% da altura
+        x_sigma = 0.05 * x_span
+        y_sigma = 0.25 * y_span
 
         mavs = np.c_[
             rng.normal(x_center, x_sigma, n_poi),
@@ -133,23 +135,17 @@ class UAVMAVUAVDistribution(BaseDistribution):
         mavs[:, 1] = np.clip(mavs[:, 1], y_min, y_max)
 
         return [Point(x, y) for x, y in mavs]
-    
-    def generate_points(self):
-        """Gera os pontos UAV e MAV e atualiza a configuração."""
-        return self._setup_config(
-            self._n_uav, self._n_mav, self._domain, self._center_fraction, self._rng
-        )
+
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    # ==========================================================
-    # 1️⃣ Setup RNG and initialize scenario
-    # ==========================================================
-    config1 = DistributionConfiguration()
-    #AirspaceState()  # Make sure AirspaceState is initialized
+    # ---------------------------------------------
+    # Setup
+    # ---------------------------------------------
     rng = np.random.default_rng(42)
-    distribution = UAVMAVUAVDistribution(
+
+    dist = UAVMAVUAVDistribution(
         rng=rng,
         n_uav=20,
         n_mav=10,
@@ -157,20 +153,14 @@ if __name__ == "__main__":
         center_fraction=0.3,
     )
 
-    config = DistributionConfiguration()
-    #CONFIG IS EMPTY. Therefore, sync is not happening properly.
+    # 🔎 Leitura correta: via view do BaseDistribution
+    config = dist.outpost.airspace_points
 
-    print("UAV Points in config:", len(config.uav_points))
-    print("UAV POINTS IN CONFIG1:", len(config1.uav_points))
-    # ==========================================================
-    # 2️⃣ Print debug summary
-    # ==========================================================
     print("\n=== [UAV–MAV–UAV Distribution Debug] ===")
     print(f"Domain: {config.domain}")
     print(f"UAV Points: {len(config.uav_points)}")
     print(f"MAV Points: {len(config.mav_points)}")
 
-    # Show sample coordinates (just a few)
     print("\nFirst 3 UAV points:")
     for p in config.uav_points[:3]:
         print(f"  ({p.x:.2f}, {p.y:.2f})")
@@ -179,25 +169,22 @@ if __name__ == "__main__":
     for p in config.mav_points[:3]:
         print(f"  ({p.x:.2f}, {p.y:.2f})")
 
-    # ==========================================================
-    # 3️⃣ Visualization
-    # ==========================================================
+    # ---------------------------------------------
+    # Visualization
+    # ---------------------------------------------
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.set_title("UAV–MAV–UAV Distribution Scenario")
     ax.set_xlabel("X coordinate")
     ax.set_ylabel("Y coordinate")
 
-    # UAV points (green)
     uav_x = [p.x for p in config.uav_points]
     uav_y = [p.y for p in config.uav_points]
     ax.scatter(uav_x, uav_y, c="green", label="UAV POIs", s=40, alpha=0.7)
 
-    # MAV points (blue)
     mav_x = [p.x for p in config.mav_points]
     mav_y = [p.y for p in config.mav_points]
     ax.scatter(mav_x, mav_y, c="blue", label="MAV POIs", s=40, alpha=0.7)
 
-    # Domain boundaries
     (x_min, x_max), (y_min, y_max) = config.domain
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)

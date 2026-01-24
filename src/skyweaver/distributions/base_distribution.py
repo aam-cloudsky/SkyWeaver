@@ -1,36 +1,36 @@
-
+# src/skyweaver/distributions/base_distribution.py
 
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
-
 import numpy as np
 
-from skyweaver.distributions.distribution_configuration import DistributionConfiguration
+from skyweaver.distributions.distribution_outpost import DistributionOutpost
 
 
 class BaseDistribution(ABC):
-    def __init__(self, config: DistributionConfiguration, rng: np.random.Generator):
-        self._config: DistributionConfiguration = config
+    def __init__(self, rng: np.random.Generator):
+        # 🔑 Cada Distribution tem sua própria view reativa
+        self._depot_outpost: DistributionOutpost = DistributionOutpost()
         self._rng = rng
 
     @property
     def domain(self) -> Tuple:
-        return self._config.domain
+        return self._depot_outpost.airspace_points.domain
 
     @property
     def uav_pois(self):
-        return self._config.uav_points
+        return self._depot_outpost.airspace_points.uav_points
 
     @property
     def mav_pois(self):
-        return self._config.mav_points
-
+        return self._depot_outpost.airspace_points.mav_points
+    
     @property
-    def config(self) -> DistributionConfiguration:
-        return self._config
+    def outpost(self) -> DistributionOutpost:
+        return self._depot_outpost
 
     @abstractmethod
-    def reset(self, rng:Optional[np.random.Generator] = None):
+    def reset(self, rng: Optional[np.random.Generator] = None):
         pass
 
     @abstractmethod
