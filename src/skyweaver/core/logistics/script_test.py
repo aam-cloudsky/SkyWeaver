@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Optional
 from skyweaver.core.logistics.parcel import Parcel
 from skyweaver.core.logistics.depot import Depot
 from skyweaver.core.logistics.outpost import Outpost, ParcelRole
@@ -9,20 +10,15 @@ from skyweaver.core.logistics.outpost import Outpost, ParcelRole
 # -------------------------------------------------
 @dataclass
 class FuelParcel(Parcel):
-    amount: float = 0.0
-    other: float = 0.0
+    amount: Optional[float] = 0.0
+    other: Optional[float] = 0.0
 
-    def is_resolved(self) -> bool:
-        return True if self.amount > 0.0 and self.other > 0.0 else False
     
 
 @dataclass
 class OtherParcel(Parcel):
     is_true: bool = True
-
-    def is_resolved(self) -> bool:
-        return True
-
+    
 # -------------------------------------------------
 # Dummy Outpost
 # -------------------------------------------------

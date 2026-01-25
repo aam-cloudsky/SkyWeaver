@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field, fields
-from typing import Dict, Set, Type
+from typing import Dict, Optional, Set, Type
 
 from skyweaver.core.logistics.lifecycle import Lifecycle
 from skyweaver.core.logistics.parcel import Parcel, EmptyParcel
@@ -11,6 +11,7 @@ from skyweaver.core.logistics.depot_messages import (
 )
 from skyweaver.core.bus.reserved_id_enum import ReservedIDs
 from enum import Enum, auto
+from typing import get_origin, get_args
 
 
 class ParcelRole(Enum):
@@ -74,9 +75,7 @@ class Outpost:
 
         # Request ALL declared parcels (dependencies + optional state)
 
-        self._request_parcels(
-            types={type(p) for p in self._declared_parcels()}
-        )
+        self._request_parcels(types=set(self._roles.keys()))
 
 
         object.__setattr__(self, "_transaction_open", False)
@@ -85,21 +84,38 @@ class Outpost:
     # Parcel discovery
     # ------------------------------------------------------------------
 
-    def _declared_parcels(self) -> list[Parcel]:
-        return [
-            getattr(self, f.name)
+    def _declared_parcels(self) -> Dict[str, Optional[Parcel]]:
+        return {
+            f.name: getattr(self, f.name)
             for f in fields(self)
-            if isinstance(getattr(self, f.name), Parcel)
-        ]
+            if f.metadata.get("role") is not None
+        }
 
+
+
+    
     def _parcel_roles(self) -> Dict[Type[Parcel], ParcelRole]:
         roles: Dict[Type[Parcel], ParcelRole] = {}
+
         for f in fields(self):
-            value = getattr(self, f.name)
-            if isinstance(value, Parcel):
-                roles[type(value)] = f.metadata.get(
-                    "role", ParcelRole.PRODUCED
-                )
+            role = f.metadata.get("role")
+            if not role:
+                continue
+
+            annotation = f.type
+            origin = get_origin(annotation)
+
+            if origin is Optional:
+                parcel_type = get_args(annotation)[0]
+            else:
+                parcel_type = annotation
+
+            if not isinstance(parcel_type, type):
+                continue
+
+            if issubclass(parcel_type, Parcel):
+                roles[parcel_type] = role
+
         return roles
 
     # ------------------------------------------------------------------
@@ -116,12 +132,12 @@ class Outpost:
             ),
         )
 
+
     # ------------------------------------------------------------------
     # Message handling (GET replies and SET broadcasts)
     # ------------------------------------------------------------------
 
     def _on_parcel_update(self, message, context):
-
         if context.from_id == self._publisher_id:
             return
 
@@ -132,27 +148,33 @@ class Outpost:
         dependencies_satisfied: set[type[Parcel]] = set()
 
         for f in fields(self):
-            current = getattr(self, f.name)
-            if not isinstance(current, Parcel):
+            role = f.metadata.get("role")
+            if role is None:
                 continue
 
-            parcel_type = type(current)
+            annotation = f.type
+            origin = get_origin(annotation)
+
+            if origin is Optional:
+                parcel_type = get_args(annotation)[0]
+            else:
+                parcel_type = annotation
+
             if parcel_type not in pallet:
                 continue
 
             incoming = pallet[parcel_type]
 
-            # Never overwrite with EmptyParcel
             if isinstance(incoming, EmptyParcel):
                 continue
 
             object.__setattr__(self, f.name, incoming)
 
-            # Only mark if this parcel is a declared dependency
-            if parcel_type in self._lifecycle._dependencies:
+            if role == ParcelRole.CONSUMED:
                 dependencies_satisfied.add(parcel_type)
 
         self.dependencies_satisfied = dependencies_satisfied
+
         
 
     def _on_post_event(self, BaseMessage, MessageContext):
@@ -186,10 +208,9 @@ class Outpost:
             if exc_type is None:
                 pallet = {
                     type(parcel): parcel
-                    for parcel in self._declared_parcels()
-                    if parcel.is_resolved()
+                    for parcel in self._declared_parcels().values()
+                    if parcel is not None
                 }
-
 
                 if pallet:
                     self._message_hub.publish(

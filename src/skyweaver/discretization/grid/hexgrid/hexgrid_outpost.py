@@ -1,6 +1,7 @@
 # src/skyweaver/discretization/grid/hexgrid/hexgrid_outpost.py
 
 from dataclasses import dataclass, field
+from typing import Optional
 from skyweaver.core.logistics.outpost import Outpost
 from skyweaver.core.logistics.outpost import ParcelRole
 
@@ -18,17 +19,17 @@ class HexGridOutpost(Outpost):
     All parcels are REQUIRED dependencies.
     """
 
-    airspace_points: AirspacePoints = field(
-        default_factory=AirspacePoints,
+    airspace_points: Optional[AirspacePoints] = field(
+        default=None,
         metadata={"role": ParcelRole.CONSUMED},
     )
 
-    cluster_parcel: ClusterParcel = field(
-        default_factory=ClusterParcel,
+    cluster_parcel: Optional[ClusterParcel] = field(
+        default=None,
         metadata={"role": ParcelRole.CONSUMED},
     )
 
-    grid_parcel: GridParcel = field(
-        default_factory=GridParcel,
+    grid_parcel: Optional[GridParcel] = field(
+        default=None,
         metadata={"role": ParcelRole.PRODUCED},
     )
