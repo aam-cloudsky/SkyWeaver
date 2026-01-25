@@ -14,3 +14,7 @@ class AirspacePoints(Parcel):
                   ] = field(default=((-1000, 1000), (-1000, 1000)))
     uav_points: List[Point] = field(default_factory=list)
     mav_points: List[Point] = field(default_factory=list)
+
+    def is_resolved(self) -> bool:
+        # domínio default NÃO é suficiente para dizer que está resolvido
+        return bool(self.uav_points or self.mav_points)

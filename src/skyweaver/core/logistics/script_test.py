@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from skyweaver.core.logistics.parcel import Parcel
 from skyweaver.core.logistics.depot import Depot
-from skyweaver.core.logistics.outpost import Outpost
+from skyweaver.core.logistics.outpost import Outpost, ParcelRole
 
 
 # -------------------------------------------------
@@ -10,15 +10,28 @@ from skyweaver.core.logistics.outpost import Outpost
 @dataclass
 class FuelParcel(Parcel):
     amount: float = 0.0
-    other: float = 0.1
+    other: float = 0.0
 
+    def is_resolved(self) -> bool:
+        return True if self.amount > 0.0 and self.other > 0.0 else False
+    
+
+@dataclass
+class OtherParcel(Parcel):
+    is_true: bool = True
+
+    def is_resolved(self) -> bool:
+        return True
 
 # -------------------------------------------------
 # Dummy Outpost
 # -------------------------------------------------
 @dataclass
 class BaseOutpost(Outpost):
-    fuel: FuelParcel = field(default_factory=FuelParcel)
+    fuel: FuelParcel = field(default_factory=FuelParcel, metadata={"role": ParcelRole.PRODUCED})
+    other: OtherParcel = field(default_factory=OtherParcel, metadata={
+                               "role": ParcelRole.CONSUMED})
+
 
 
 # -------------------------------------------------

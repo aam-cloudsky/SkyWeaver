@@ -11,10 +11,10 @@ import matplotlib.pyplot as plt
 
 
 from skyweaver.core.enums.zone_type import ZoneType
-from skyweaver.instance_segmentation.geometry.cluster import Cluster
-from skyweaver.instance_segmentation.clustering.base_clustering import BaseClustering
-from skyweaver.instance_segmentation.clustering.cluster_shape_builder import ClusterShapeBuilder
-from skyweaver.instance_segmentation.clustering.cluster_outpost import ClusterOutpost
+from skyweaver.clustering.cluster import Cluster
+from skyweaver.clustering.base_clustering import BaseClustering
+from skyweaver.clustering.cluster_shape_builder import ClusterShapeBuilder
+from skyweaver.clustering.cluster_outpost import ClusterOutpost
 
 
 
@@ -134,6 +134,9 @@ class HDBSCANClustering(BaseClustering):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from skyweaver.distributions.uav_mav_uav_distribution import UAVMAVUAVDistribution
+    from skyweaver.core.logistics.depot import Depot
+
+    Depot()
 
     # ------------------------------------------------------
     # 1. Initialize AirspaceState (singleton)

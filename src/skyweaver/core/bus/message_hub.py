@@ -122,9 +122,9 @@ class MessageHub:
     # ==========================================================
 
 
-    def subscribe(self, topic: TopicsEnum, publisher_id: int, subscriber: Callable[[BaseMessage, MessageContext], None]) -> None:
+    def subscribe(self, topic: TopicsEnum, publisher_id: int, subscriber: Callable[[BaseMessage, MessageContext], None], post_subscriber: Optional[Callable[[BaseMessage, MessageContext], None]] = None) -> None:
         """Subscribe to a specific topic."""
-        self._get_broker(topic).subscribe(topic, publisher_id, subscriber)
+        self._get_broker(topic).subscribe(topic, publisher_id, subscriber, post_subscriber)
 
 
 
@@ -148,13 +148,22 @@ class MessageHub:
             return
 
         self._register_publisher_topic(topic, message_context.from_id)
-        broker.publish(topic, message, message_context)
+        delivered = broker.publish(topic, message, message_context)
+
+        self.monitor.on_deliver(
+                topic=topic,
+                message=message,
+                context=message_context,
+                delivered=delivered,
+            )
+        
+        broker.post_publish(topic, message, message_context)
+        
 
 
     def _get_broker(self, topic: TopicsEnum) -> Broker:
         """Get or create a broker for a specific topic."""
-        return self._brokers.setdefault(topic, Broker(monitor=self.monitor))
-
+        return self._brokers.setdefault(topic, Broker())
    
 
     def create_message_context(self, from_id: int, to_id: Optional[int] = None) -> MessageContext:

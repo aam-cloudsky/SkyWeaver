@@ -1,5 +1,5 @@
 import threading
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 from skyweaver.core.bus.message_context import MessageContext
 from skyweaver.core.bus.messages.base_message import BaseMessage
@@ -20,29 +20,33 @@ class Broker:
         * Otherwise, only the matching subscriber is triggered.
     """
 
-    def __init__(self, monitor: EventMonitor):
+    def __init__(self):
         self._lock = threading.Lock()
         self._subscribers: Dict[TopicsEnum, Dict[int, Callable[[
             BaseMessage, MessageContext], None]]] = {}
-        
-        self._monitor = monitor
 
-    def subscribe(self, topic: TopicsEnum, publisher_id: int, subscriber: Callable[[BaseMessage, MessageContext], None]) -> None:
+        self._post_subscribers: Dict[TopicsEnum, Dict[int, Callable[[
+            BaseMessage, MessageContext], None]]] = {}
+        
+    def subscribe(self, topic: TopicsEnum, publisher_id: int, subscriber: Callable[[BaseMessage, MessageContext], None], post_subscriber: Optional[Callable[[BaseMessage, MessageContext], None]] = None) -> None:
         with self._lock:
             if topic not in self._subscribers:
                 self._subscribers[topic] = {}
+                self._post_subscribers[topic] = {}
 
             self._subscribers[topic][publisher_id] = subscriber
+
+            if post_subscriber:
+                self._post_subscribers[topic][publisher_id] = post_subscriber
 
 
     def unsubscribe(self, topic: TopicsEnum, publisher_id: int) -> None:
         with self._lock:
             if topic in self._subscribers:
                 self._subscribers[topic].pop(publisher_id, None)
+                self._post_subscribers[topic].pop(publisher_id, None)
 
-
-
-    def publish(self, topic: TopicsEnum, message: BaseMessage, message_context: MessageContext) -> None:
+    def publish(self, topic: TopicsEnum, message: BaseMessage, message_context: MessageContext) -> bool:
         
         
         to_id:int = message_context.to_id
@@ -67,14 +71,27 @@ class Broker:
                 #print(f"[BROKER][WARN] Subscriber {to_id} failed: {e}")
                 delivered = False
 
-        if self._monitor:
-            self._monitor.on_deliver(
-                topic=topic,
-                message=message,
-                context=message_context,
-                delivered=delivered,
-            )
+        return delivered
 
+
+    def post_publish(self, topic: TopicsEnum, message: BaseMessage, message_context: MessageContext) -> None:
+        to_id:int = message_context.to_id
+        post_subscribers = self._post_subscribers.get(topic, {})
+
+        if to_id == ReservedIDs.BROADCAST.value:
+            for sid, post_subscriber in post_subscribers.items():
+                if sid in message_context.exclude_ids:
+                    continue
+                if sid == message_context.from_id:
+                    continue  # still skip self
+                post_subscriber(message, message_context)
+
+        elif to_id in post_subscribers:
+            try:
+                post_subscribers[to_id](message, message_context)
+            except Exception as e:
+                #print(f"[BROKER][WARN] Post-subscriber {to_id} failed: {e}")
+                pass
 
 
     def _format_id(self, pid: int) -> str:

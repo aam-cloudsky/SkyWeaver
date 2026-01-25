@@ -13,3 +13,6 @@ from skyweaver.core.logistics.parcel import Parcel
 class GridParcel(Parcel):
     grid: BaseGrid = field(default_factory=NullGrid)
     cell_size: float = field(default=100.0)
+
+    def is_resolved(self) -> bool:
+        return self.grid is not None and self.cell_size is not None

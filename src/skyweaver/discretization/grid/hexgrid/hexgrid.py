@@ -21,7 +21,7 @@ from skyweaver.discretization.grid.hexgrid.hexprojection import (
 from skyweaver.discretization.grid.hexgrid.hexcoord import HexCoord
 from skyweaver.discretization.grid.hexgrid.hexcell import HexCell
 from skyweaver.discretization.grid.base_grid import BaseGrid
-from skyweaver.instance_segmentation.geometry.cluster import Cluster
+from skyweaver.clustering.cluster import Cluster
 
 
 from skyweaver.discretization.grid.base_grid import BaseGrid

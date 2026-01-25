@@ -46,8 +46,8 @@ class Depot(metaclass=ThreadSingleton):
         self.message_hub: MessageHub = MessageHub()
         self._subscribe_to_topics()
 
-        self.lifecycle = Lifecycle(self.message_hub)
-        self.lifecycle._lifecycle_ready(self.publisher_id)
+        self.lifecycle = Lifecycle(publisher_id=self.publisher_id, message_hub=self.message_hub)
+        self.lifecycle._notify_ready()
 
 
 
@@ -84,12 +84,14 @@ class Depot(metaclass=ThreadSingleton):
         parcel_types = mes.types
         pallet = self.get_parcels(parcel_types)
 
+        self._on_get_request_pallet = pallet
+
+    def _on_post_get_request(self, message: BaseMessage, context: MessageContext):
         self.message_hub.publish(
             topic=TopicsEnum.DEPOT_GET,
-            message=DepotUpdate(pallet=pallet),
+            message=DepotUpdate(pallet=self._on_get_request_pallet),
             message_context=self._build_answer_context(context)
         )
-
 
     def _on_set_request(self, message: BaseMessage, context: MessageContext):
         if not isinstance(message, DepotSet):
@@ -98,14 +100,20 @@ class Depot(metaclass=ThreadSingleton):
         mes: DepotSet = cast(DepotSet, message)
         pallet = mes.pallet
 
+        self._on_set_request_pallet = pallet
         for parcel in pallet.values():
             self.set_parcel(parcel)
 
+        
+
+    def _on_post_set_request(self, message: BaseMessage, context: MessageContext):
         MessageHub().publish(
             topic=TopicsEnum.DEPOT_SET,
-            message=DepotUpdate(pallet=pallet),
-            message_context=self._build_answer_context(context, to_id=ReservedIDs.BROADCAST.value)
+            message=DepotUpdate(pallet=self._on_set_request_pallet),
+            message_context=self._build_answer_context(
+                context, to_id=ReservedIDs.BROADCAST.value)
         )
+
         
     def _build_answer_context(self, request_context: MessageContext, to_id: Optional[int] = None) -> MessageContext:
         """Build a response MessageContext based on a request's context."""
@@ -125,11 +133,13 @@ class Depot(metaclass=ThreadSingleton):
         self.message_hub.subscribe(
             topic=TopicsEnum.DEPOT_GET,
             publisher_id=self.publisher_id,
-            subscriber=self._on_get_request
+            subscriber=self._on_get_request,
+            post_subscriber=self._on_post_get_request
         )
 
         self.message_hub.subscribe(
             topic=TopicsEnum.DEPOT_SET,
             publisher_id=self.publisher_id,
-            subscriber=self._on_set_request
+            subscriber=self._on_set_request,
+            post_subscriber=self._on_post_set_request
         )

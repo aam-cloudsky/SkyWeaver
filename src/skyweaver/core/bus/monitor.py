@@ -9,7 +9,12 @@ from rich.text import Text
 
 from skyweaver.core.bus.message_context import MessageContext
 from skyweaver.core.bus.messages.base_message import BaseMessage
-from skyweaver.core.bus.messages.lifecycle_message import ServiceReady
+from skyweaver.core.bus.messages.lifecycle_message import (
+    ServiceReady,
+    NotifyJoinMessage,
+    DependenciesSatisfied,
+)
+
 from skyweaver.core.bus.reserved_id_enum import ReservedIDs
 from skyweaver.core.bus.topics_enum import TopicsEnum
 
@@ -96,9 +101,19 @@ class EventMonitor:
         if not self.enabled:
             return
         
+        if isinstance(message, NotifyJoinMessage):
+            self._print_notify_join(message, context)
+            return
+
+
         if isinstance(message, ServiceReady):
             self._print_service_ready(message, context)
             return
+        
+        if isinstance(message, DependenciesSatisfied):
+            self._print_dependencies_satisfied(message, context)
+            return
+
 
 
         # SEMPRE cria um trace novo
@@ -113,6 +128,43 @@ class EventMonitor:
             failed=False,
         )
 
+    def _print_dependencies_satisfied(
+        self,
+        message: DependenciesSatisfied,
+        context: MessageContext,
+    ):
+        pid = context.from_id
+        deps = message.parcel_types
+
+        if not deps:
+            return
+
+        deps_list = sorted(deps, key=lambda t: t.__name__)
+
+        line = Text()
+
+        # Status dot
+        line.append("● ", style="green")
+
+        # Topic
+        line.append(f"{TopicsEnum.LIFECYCLE.name:<12} ", style="cyan")
+
+        # State label
+        line.append(f"{'(waiting)':<14} ", style="grey50")
+
+        # Actor
+        origin = self._resolve_id(pid)
+        line.append(origin)
+        line.append(" dependencies satisfied ", style="bold green")
+
+        # Dependency info
+        first = deps_list[0].__name__
+        extra = f" (+{len(deps_list) - 1})" if len(deps_list) > 1 else ""
+        line.append(first + extra, style="grey50")
+
+        self.console.print(line)
+
+
     def on_deliver(
         self,
         *,
@@ -121,31 +173,19 @@ class EventMonitor:
         context: MessageContext,
         delivered: bool,
     ):
+
         if not self.enabled:
             return
 
+
         trace = self._traces.get(context.trace_id)
-        if not trace:
-            return
+        if trace:
+            trace.delivered = delivered
+            self._print_trace(trace)
+            self._traces.pop(trace.trace_id, None)
 
-        trace.delivered = delivered
-        trace.failed = not delivered
 
-        # 🔁 CASO 1: é um reply
-        if trace.reply_to:
-            # guarda o reply, NÃO imprime ainda
-            self._pending_replies[trace.reply_to] = trace
-            return
 
-        # 📤 CASO 2: é request (Outpost → Depot)
-        self._print_trace(trace)
-        self._traces.pop(trace.trace_id, None)
-
-        # 🔓 Se existe reply pendente, imprime agora
-        reply = self._pending_replies.pop(trace.trace_id, None)
-        if reply:
-            self._print_trace(reply)
-            self._traces.pop(reply.trace_id, None)
 
 
 
@@ -196,6 +236,7 @@ class EventMonitor:
         self.console.print(line)
 
     def _print_service_ready(self, message, context):
+
         line = Text()
 
         # Status dot (sempre verde)
@@ -216,7 +257,37 @@ class EventMonitor:
         if origin_id in (r.value for r in ReservedIDs):
             line.append(" is alive", style="bold green")
         else:
-            line.append(" joined", style="bold cyan")
+            line.append(" ready", style="bold green")
+
+        self.console.print(line)
+
+    def _print_notify_join(self, message: NotifyJoinMessage, context: MessageContext):
+        line = Text()
+
+        # Status dot
+        line.append("● ", style="green")
+
+        # Topic
+        line.append(f"{TopicsEnum.LIFECYCLE.name:<12} ", style="cyan")
+
+        # Lifecycle state
+        deps = message.dependencies or []
+        n = len(deps)
+
+        state = "(waiting)" if n > 0 else "(ready)"
+        line.append(f"{state:<14} ", style="grey50")
+
+        # Actor
+        origin = self._resolve_id(context.from_id)
+        line.append(origin)
+        line.append(" joined", style="bold cyan")
+        # Dependency info
+        if n > 0:
+            first = deps[0].__name__
+            line.append(
+                f" Dependencies: {first} + {n - 1}",
+                style="dim",
+            )
 
         self.console.print(line)
 
