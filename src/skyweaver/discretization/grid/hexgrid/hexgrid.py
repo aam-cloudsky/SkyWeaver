@@ -3,6 +3,7 @@ from typing import List, Optional, Tuple
 
 from shapely import Point
 from skyweaver.discretization.grid.base_cell import BaseCell
+from skyweaver.discretization.grid.grid_parcel import GridParcel
 from skyweaver.discretization.grid.hexgrid.hexcoord import HexCoord
 from skyweaver.discretization.grid.hexgrid.hexgrid_outpost import (
     HexGridOutpost,
@@ -43,8 +44,13 @@ class HexGrid(BaseGrid):
 
         # self._cell_size: float = cell_size
         with self.outpost:
-            self.outpost.grid_parcel.cell_size = cell_size
-            self.outpost.grid_parcel.grid = self
+            self.outpost.grid_parcel = GridParcel(self, cell_size)
+        
+        print("HexGrid initialized with cell size:", self.outpost.grid_parcel.cell_size)
+        print("[HexGrid] grid type on outpost:",
+              type(self.outpost.grid_parcel.grid))
+            
+            
 
     # =======================================================
     # Private Functions
@@ -87,15 +93,17 @@ class HexGrid(BaseGrid):
 
     def _compute_availability(self, cell: HexCell) -> bool:
         for cluster in self.outpost.cluster_parcel.clusters:
-
+            print(f"Checking availability for cell at {cell.cartesian_center} against cluster at {cluster.centroid}")
             # Fast rejection
             if not self._is_within_risky_area(cell, cluster):
+                print(f"Cell at {cell.cartesian_center} is not within risky area of cluster at {cluster.centroid}, skipping.")
                 continue
 
             # Expensive geometry check
             if cluster.intersection_area(cell.polygon) > 0:
+                print(f"Cell at {cell.cartesian_center} intersects with cluster at {cluster.centroid}, marking as unavailable.")
                 return False
-
+        print(f"Cell at {cell.cartesian_center} is available.")
         return True
 
     # =======================================================
@@ -142,7 +150,9 @@ class HexGrid(BaseGrid):
         Intended for debugging / visualization only.
         """
         (xmin, xmax), (ymin, ymax) = self.outpost.airspace_points.domain
+        print(f"Iterating domain cells within x:[{xmin}, {xmax}], y:[{ymin}, {ymax}]")
         size = self.outpost.grid_parcel.cell_size
+        print("Cell size:", size)
 
         corners = [
             pixel_to_pointy_hex_frac(xmin, ymin, size),
@@ -163,7 +173,7 @@ class HexGrid(BaseGrid):
             for r in range(r_min, r_max + 1):
                 cell = self.get_cell_from_coord(HexCoord(q, r))
                 if cell is not None:
-                    #print(f"Yielding cell at HexCoord({q}, {r})")
+                    print(f"Yielding cell at HexCoord({q}, {r})")
                     yield cell
 
     def neighbors(self, cell: HexCell) -> List[BaseCell]:
@@ -173,6 +183,7 @@ class HexGrid(BaseGrid):
         for c in coords:
             nb = self.get_cell_from_coord(c)
             if nb is not None:
+                print(f"Neighbor found at HexCoord({c.q}, {c.r})")
                 neighborhood.append(nb)
 
         return neighborhood 

@@ -39,6 +39,7 @@ class Lifecycle:
         self._joined_announced = False
         self._ready_announced = False
         self._satisfied_announced = False
+        self.newly_satisfied: set[Type] = set()
 
     # ------------------------------------------------------------------
     # Lifecycle events
@@ -102,7 +103,7 @@ class Lifecycle:
         #    self._evaluate_ready()
 
     def verify_and_notify(self):
-        print("Verifying lifecycle dependencies...")
+        
         if self._satisfied_announced:
             return
         

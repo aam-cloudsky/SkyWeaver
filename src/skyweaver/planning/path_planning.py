@@ -38,6 +38,7 @@ class PathPlanning:
         v_a = self.cell_to_vid[a]
         v_b = self.cell_to_vid[b]
 
+        print(f"[PathPlanning] shortest_path from cell {a} (vid {v_a}) to cell {b} (vid {v_b})")
         res = self.graph.get_shortest_paths(
             v=v_a,
             to=v_b,
@@ -46,9 +47,11 @@ class PathPlanning:
         )
 
         if not res or not res[0]:
+            print(f"[PathPlanning] no path found from cell {a} (vid {v_a}) to cell {b} (vid {v_b})")
             return float("inf"), None
 
         if not return_path:
+            print(f"[PathPlanning] shortest_path cost from cell {a} (vid {v_a}) to cell {b} (vid {v_b})")
             cost = sum(self.graph.es[eid]["weight"] for eid in res[0])
             return cost, None
 
@@ -59,6 +62,7 @@ class PathPlanning:
         for u, v in zip(vpath[:-1], vpath[1:]):
             eid = self.graph.get_eid(u, v)
             cost += self.graph.es[eid]["weight"]
+            print(f"[PathPlanning] edge {u} -> {v} (eid {eid}) weight: {self.graph.es[eid]['weight']}")
 
         return cost, cells
 
@@ -78,7 +82,13 @@ def compute_terminal_paths(
     paths: List[List[BaseCell]] = []
 
     for a, b in combinations(terminals, 2):
+        if a not in planner.cell_to_vid or b not in planner.cell_to_vid:
+            print(f"[compute_terminal_paths] Warning: terminal {a} or {b} not in planner graph.")
+            continue
+
+        print(f"[compute_terminal_paths] computing shortest path from {a} to {b}...")
         cost, cells = planner.shortest_path(a, b)
+        print(f"[compute_terminal_paths] shortest path from {a} to {b} has cost {cost} and length of {len(cells) if cells else 'N/A'}.")
         if cells is not None:
             paths.append(cells)
 
@@ -104,6 +114,8 @@ if __name__ == "__main__":
     grid = HexGrid(cell_size=100.0)
     all_cells = list(grid.iter_domain_cells())
 
+    print(f"[PATHPLANNING IFMAIN] generated {len(all_cells)} hex cells.")
+
     # ======================================================
     # 2. Pick fixed terminals
     # ======================================================
@@ -112,6 +124,7 @@ if __name__ == "__main__":
     fixed_terminals = random.sample(available_cells, NUM_TERMINALS)
     fixed_terminal_set = set(fixed_terminals)
 
+    print(f"[PATHPLANNING IFMAIN] selected {len(fixed_terminals)} fixed terminals.")
     # ======================================================
     # 3. Randomly block cells (excluding terminals)
     # ======================================================
@@ -121,19 +134,23 @@ if __name__ == "__main__":
 
     for c in blocked:
         c.set_unavailable()
-
+    print(f"[PATHPLANNING IFMAIN] blocked {len(blocked)} cells.")
     # ======================================================
     # 4. Build base graph (G0)
     # ======================================================
     outpost = GraphOutpost()
     builder = GraphBuilder(outpost=outpost)
+
+    print("[PATHPLANNING IFMAIN] building base graph...")
     base_graph = builder.build_navigation_graph()
+    print(base_graph)
+    
     planner = PathPlanning(base_graph)
 
     print(
-        f"[GRAPH] vertices={base_graph.vcount()} edges={base_graph.ecount()}"
+        f"[PATHPLANNING IFMAIN] graph vertices={base_graph.vcount()} edges={base_graph.ecount()}"
     )
-
+    print(f"[PATHPLANNING IFMAIN] graph outpost grid cell size: {outpost.grid_parcel.cell_size}")
     # ======================================================
     # 5. Matplotlib setup
     # ======================================================
@@ -152,6 +169,7 @@ if __name__ == "__main__":
     for cell in all_cells:
         poly = cell.polygon.exterior.coords
         face = "lightcoral" if not cell.available else "none"
+
 
         ax.add_patch(
             MplPolygon(
@@ -221,9 +239,17 @@ if __name__ == "__main__":
         # Compute terminal paths (G0 → G1)
         # --------------------------------------------------
         t0 = time.perf_counter()
+        print(f"[PATHPLANNING IFMAIN] computing terminal paths for {len(terminals)} terminals...")
+        print(planner, terminals)
+
+        print(
+            "[DEBUG] terminal id:", id(terminals[0]),
+            "coord:", terminals[0].coord
+        )
+
 
         paths = compute_terminal_paths(planner, terminals)
-
+        print(f"[PATHPLANNING IFMAIN] computed {len(paths)} terminal paths.")
         if not paths:
             fig.canvas.draw_idle()
             return

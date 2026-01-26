@@ -26,9 +26,9 @@ class Broker:
             BaseMessage, MessageContext], None]]] = {}
 
         self._post_subscribers: Dict[TopicsEnum, Dict[int, Callable[[
-            BaseMessage, MessageContext], None]]] = {}
+            BaseMessage, MessageContext, bool], None]]] = {}
         
-    def subscribe(self, topic: TopicsEnum, publisher_id: int, subscriber: Callable[[BaseMessage, MessageContext], None], post_subscriber: Optional[Callable[[BaseMessage, MessageContext], None]] = None) -> None:
+    def subscribe(self, topic: TopicsEnum, publisher_id: int, subscriber: Callable[[BaseMessage, MessageContext], None], post_subscriber: Optional[Callable[[BaseMessage, MessageContext, bool], None]] = None) -> None:
         with self._lock:
             if topic not in self._subscribers:
                 self._subscribers[topic] = {}
@@ -74,25 +74,20 @@ class Broker:
         return delivered
 
 
-    def post_publish(self, topic: TopicsEnum, message: BaseMessage, message_context: MessageContext) -> None:
-        to_id:int = message_context.to_id
+    def post_publish(self, topic: TopicsEnum, message: BaseMessage, message_context: MessageContext, delivered: bool) -> None:
         post_subscribers = self._post_subscribers.get(topic, {})
 
-        if to_id == ReservedIDs.BROADCAST.value:
-            for sid, post_subscriber in post_subscribers.items():
-                if sid in message_context.exclude_ids:
-                    continue
-                if sid == message_context.from_id:
-                    continue  # still skip self
-                post_subscriber(message, message_context)
+        sender_id = message_context.from_id
+        receiver_id = message_context.to_id
 
-        elif to_id in post_subscribers:
-            try:
-                post_subscribers[to_id](message, message_context)
-            except Exception as e:
-                #print(f"[BROKER][WARN] Post-subscriber {to_id} failed: {e}")
-                pass
+        
+        if sender_id in post_subscribers:
+            post_subscribers[sender_id](message, message_context, delivered)
 
+        if receiver_id in post_subscribers and receiver_id != sender_id:
+            post_subscribers[receiver_id](message, message_context, delivered)
+
+        
 
     def _format_id(self, pid: int) -> str:
         for r in ReservedIDs:

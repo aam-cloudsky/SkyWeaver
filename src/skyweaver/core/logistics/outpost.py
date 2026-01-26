@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field, fields
 from typing import Dict, Optional, Set, Type
 
+from skyweaver.core.bus.errors import DeliveryError
+from skyweaver.core.bus.messages.base_message import BaseMessage
 from skyweaver.core.logistics.lifecycle import Lifecycle
 from skyweaver.core.logistics.parcel import Parcel, EmptyParcel
 from skyweaver.core.bus.message_hub import MessageHub, TopicsEnum, MessageContext
@@ -18,7 +20,7 @@ class ParcelRole(Enum):
     """Role of a parcel in an Outpost."""
     CONSUMED = auto()   # dependency
     PRODUCED = auto()   # owned / produced here
-
+    UNDEFINED = auto()  # undefined role
 
 @dataclass
 class Outpost:
@@ -28,7 +30,15 @@ class Outpost:
     - Declares parcels as dataclass fields
     - CONSUMED parcels are dependencies
     - PRODUCED parcels are published after transactions
+
+    # NOTE:
+    # This system assumes strong synchronization.
+    # Delivery failure indicates incorrect usage or initialization order.
+    # Local state is not rolled back on failed delivery.
+
     """
+
+    
 
     _transaction_open: bool = field(default=True, init=False, repr=False)
     _publisher_id: int = field(default=-1, init=False, repr=False)
@@ -56,6 +66,9 @@ class Outpost:
             message_hub=self._message_hub,
             dependencies=consumed,
         )
+
+        self.dependencies_satisfied: Set[Type[Parcel]] = set()
+
         self._lifecycle.notify_join()
 
         # Subscriptions (reactive updates)
@@ -88,7 +101,7 @@ class Outpost:
         return {
             f.name: getattr(self, f.name)
             for f in fields(self)
-            if f.metadata.get("role") is not None
+            if isinstance(getattr(self, f.name), Parcel)
         }
 
 
@@ -99,8 +112,7 @@ class Outpost:
 
         for f in fields(self):
             role = f.metadata.get("role")
-            if not role:
-                continue
+            
 
             annotation = f.type
             origin = get_origin(annotation)
@@ -114,7 +126,10 @@ class Outpost:
                 continue
 
             if issubclass(parcel_type, Parcel):
-                roles[parcel_type] = role
+                if not role:
+                    roles[parcel_type] = ParcelRole.UNDEFINED
+                else:
+                    roles[parcel_type] = role
 
         return roles
 
@@ -137,11 +152,13 @@ class Outpost:
     # Message handling (GET replies and SET broadcasts)
     # ------------------------------------------------------------------
 
-    def _on_parcel_update(self, message, context):
+    def _on_parcel_update(self, message: BaseMessage, context: MessageContext):
         if context.from_id == self._publisher_id:
+            print("[Outpost] Ignoring update from self")
             return
 
         if not isinstance(message, DepotUpdate):
+            print("[Outpost] Ignoring non-DepotUpdate message")
             return
 
         pallet = message.pallet
@@ -149,8 +166,8 @@ class Outpost:
 
         for f in fields(self):
             role = f.metadata.get("role")
-            if role is None:
-                continue
+            #if role is None:
+            #    continue
 
             annotation = f.type
             origin = get_origin(annotation)
@@ -173,13 +190,21 @@ class Outpost:
             if role == ParcelRole.CONSUMED:
                 dependencies_satisfied.add(parcel_type)
 
-        self.dependencies_satisfied = dependencies_satisfied
+        #self.dependencies_satisfied = dependencies_satisfied
+        object.__setattr__(self, "dependencies_satisfied", dependencies_satisfied)
 
         
 
-    def _on_post_event(self, BaseMessage, MessageContext):
-        print(self.dependencies_satisfied)
-        print(BaseMessage)
+    def _on_post_event(self, message: BaseMessage, context: MessageContext, delivered: bool):
+        """
+        All Outpost ↔ Depot interactions are synchronous and authoritative.
+        Any message that is not delivered invalidates the operation and must raise an error.        
+        """
+
+        if not delivered:
+            raise DeliveryError()
+            #pass
+
         if self.dependencies_satisfied:
             self._lifecycle.mark_dependencies_satisfied(self.dependencies_satisfied)
         self._lifecycle.verify_and_notify()
@@ -200,19 +225,22 @@ class Outpost:
     # ------------------------------------------------------------------
 
     def __enter__(self):
+        print("[Outpost] Beginning transaction")
         object.__setattr__(self, "_transaction_open", True)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
             if exc_type is None:
+                print("[Outpost] Committing transaction")
                 pallet = {
                     type(parcel): parcel
                     for parcel in self._declared_parcels().values()
                     if parcel is not None
                 }
-
+                print("[Outpost] Prepared pallet for Depot:", pallet)
                 if pallet:
+                    print("[Outpost] Publishing updated parcels to Depot:", pallet)
                     self._message_hub.publish(
                         topic=TopicsEnum.DEPOT_SET,
                         message=DepotSet(pallet=pallet),
@@ -223,3 +251,4 @@ class Outpost:
                     )
         finally:
             object.__setattr__(self, "_transaction_open", False)
+            print("[Outpost] Transaction closed")

@@ -18,7 +18,7 @@ class FuelParcel(Parcel):
 @dataclass
 class OtherParcel(Parcel):
     is_true: bool = True
-    
+
 # -------------------------------------------------
 # Dummy Outpost
 # -------------------------------------------------
@@ -34,6 +34,7 @@ class BaseOutpost(Outpost):
 # Test
 # -------------------------------------------------
 def main():
+    
     depot = Depot()
 
     print("Creating outposts...")
@@ -51,6 +52,8 @@ def main():
     print("\nAfter update:")
     print("A:", a.fuel.amount, a.fuel.other)
     print("B:", b.fuel.amount, b.fuel.other)
+
+    
 
     c = BaseOutpost()
 

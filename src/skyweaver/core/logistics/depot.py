@@ -1,5 +1,6 @@
 # src/skyweaver/core/logistics/depot.py
 
+
 from typing import Any, Dict, Optional, Tuple, cast
 import threading
 
@@ -12,6 +13,7 @@ from skyweaver.core.bus.message_hub import MessageHub, TopicsEnum, MessageContex
 from skyweaver.core.logistics.lifecycle import Lifecycle
 from skyweaver.core.logistics.parcel import Parcel, EmptyParcel
 from skyweaver.core.logistics.depot_messages import DepotGet, DepotSet, DepotUpdate
+from skyweaver.discretization.grid.grid_parcel import GridParcel
 
 
 # ---------------------------------------------------------------------
@@ -62,6 +64,8 @@ class Depot(metaclass=ThreadSingleton):
         if not isinstance(parcel, Parcel):
             raise TypeError("Only Parcel instances can be registered")
 
+        if type(parcel) == GridParcel:
+            print(f"[Depot] Registering GridParcel with cell size: {parcel.cell_size} e type: {type(parcel.grid)}")
         self._storage[type(parcel)] = parcel
 
     def get_parcels(self, parcel_types: list[type[Parcel]]) -> Dict[type, Parcel]:
@@ -86,7 +90,11 @@ class Depot(metaclass=ThreadSingleton):
 
         self._on_get_request_pallet = pallet
 
-    def _on_post_get_request(self, message: BaseMessage, context: MessageContext):
+    def _on_post_get_request(self, message: BaseMessage, context: MessageContext, delivered: bool):
+
+        if context.from_id == self.publisher_id:
+            return
+
         self.message_hub.publish(
             topic=TopicsEnum.DEPOT_GET,
             message=DepotUpdate(pallet=self._on_get_request_pallet),
@@ -106,7 +114,11 @@ class Depot(metaclass=ThreadSingleton):
 
         
 
-    def _on_post_set_request(self, message: BaseMessage, context: MessageContext):
+    def _on_post_set_request(self, message: BaseMessage, context: MessageContext, delivered: bool):
+
+        if context.from_id == self.publisher_id:
+            return
+        
         MessageHub().publish(
             topic=TopicsEnum.DEPOT_SET,
             message=DepotUpdate(pallet=self._on_set_request_pallet),

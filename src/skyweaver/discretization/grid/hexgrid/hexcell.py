@@ -44,5 +44,15 @@ class HexCell(BaseCell):
 
         return Point(pointy_hex_to_pixel(self._coord, self._size))
         
-    
+    def __eq__(self, other):
+        if not isinstance(other, HexCell):
+            return NotImplemented
+        return (
+            self._coord == other._coord
+            and self._size == other._size
+        )
+
+    def __hash__(self):
+        return hash((self._coord, self._size))
+
     

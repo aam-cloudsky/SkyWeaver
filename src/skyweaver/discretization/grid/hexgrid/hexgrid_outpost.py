@@ -19,17 +19,14 @@ class HexGridOutpost(Outpost):
     All parcels are REQUIRED dependencies.
     """
 
-    airspace_points: Optional[AirspacePoints] = field(
-        default=None,
-        metadata={"role": ParcelRole.CONSUMED},
+    airspace_points: AirspacePoints = field(
+        default_factory=AirspacePoints
+    )
+    
+    cluster_parcel: ClusterParcel = field(
+        default_factory=ClusterParcel
     )
 
-    cluster_parcel: Optional[ClusterParcel] = field(
-        default=None,
-        metadata={"role": ParcelRole.CONSUMED},
-    )
-
-    grid_parcel: Optional[GridParcel] = field(
-        default=None,
-        metadata={"role": ParcelRole.PRODUCED},
+    grid_parcel: GridParcel = field(
+        default_factory=GridParcel
     )

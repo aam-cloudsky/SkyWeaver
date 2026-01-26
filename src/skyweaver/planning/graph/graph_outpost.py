@@ -23,15 +23,12 @@ class GraphOutpost(Outpost):
     """
 
     grid_parcel: GridParcel = field(
-        default_factory=GridParcel,
-        metadata={"role": ParcelRole.CONSUMED},
+        default_factory=GridParcel
     )
     cluster_parcel: ClusterParcel = field(
-        default_factory=ClusterParcel,
-        metadata={"role": ParcelRole.CONSUMED},
+        default_factory=ClusterParcel
     )
 
     graph_parcel: GraphParcel = field(
-        default_factory=GraphParcel,
-        metadata={"role": ParcelRole.PRODUCED},
+        default_factory=GraphParcel
     )

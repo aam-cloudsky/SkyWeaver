@@ -7,3 +7,4 @@ class TopicsEnum(IntEnum):
     #DEPOT = auto()
     LIFECYCLE = auto()
     NOTIFY = auto()
+    DEPOT_UPDATE = auto()

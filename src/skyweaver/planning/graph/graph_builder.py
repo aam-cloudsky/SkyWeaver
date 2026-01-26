@@ -25,6 +25,15 @@ class GraphBuilder:
 
     def _build_graph_from_grid(self, grid: BaseGrid) -> ig.Graph:
 
+        print("[DEBUG GraphBuilder] grid_parcel:", self.outpost.grid_parcel)
+
+
+        print("[DEBUG GraphBuilder] grid object:", self.outpost.grid_parcel.grid)
+
+        cells = list(self.outpost.grid_parcel.grid.iter_domain_cells())
+        print("[DEBUG GraphBuilder] number of cells seen:", len(cells))
+        print("[DEBUG GraphBuilder] first 5 cells:", cells[:5])
+
         graph = ig.Graph(directed=False)
 
         # ---------------------------------------------
@@ -35,12 +44,15 @@ class GraphBuilder:
 
         # Pega todas as células navegáveis e cria um vértice para cada uma
         for cell in grid.iter_domain_cells():
+            print(f"[GraphBuilder] Processing cell at {cell.cartesian_center} (available: {cell.available})")
             if not cell.available:
+                print(f"[GraphBuilder] Skipping unavailable cell at {cell.cartesian_center}")
                 continue
 
             vertex_id = graph.vcount()
             graph.add_vertex()
 
+            print(f"[GraphBuilder] Added vertex {vertex_id} for cell at {cell.cartesian_center}")
             cell_to_vertex_id[cell] = vertex_id
             vertex_id_to_cell[vertex_id] = cell
 
@@ -50,30 +62,35 @@ class GraphBuilder:
         edges = []
         weights = []
 
-        
+        print(f"[GraphBuilder] Creating edges...")
         for cell, vertex_id in cell_to_vertex_id.items():
+            print(f"[GraphBuilder] Processing edges for cell at {cell.cartesian_center} (vertex {vertex_id})")
             for neighbor in grid.neighbors(cell):
                 if neighbor not in cell_to_vertex_id:
+                    print(f"[GraphBuilder] Neighbor cell at {neighbor.cartesian_center} is not available, skipping.")
                     continue
 
                 neighbor_vertex_id = cell_to_vertex_id[neighbor]
                 # Avoid duplicating undirected edges
                 if neighbor_vertex_id <= vertex_id:
+                    print(f"[GraphBuilder] Edge from vertex {vertex_id} to {neighbor_vertex_id} already processed, skipping.")
                     continue
 
                 edges.append((vertex_id, neighbor_vertex_id))
 
                 # Edge cost is average of cell costs
                 edge_cost = 0.5 * (cell.cost + neighbor.cost)
+                print(f"[GraphBuilder] Adding edge from vertex {vertex_id} to {neighbor_vertex_id} with cost {edge_cost}")
                 weights.append(edge_cost)
 
-
+        print(f"[GraphBuilder] Adding {len(edges)} edges to graph...")
         graph.add_edges(edges)
         graph.es["weight"] = weights
 
         # ---------------------------------------------
         # 3. Store mapping in graph attributes
         # ---------------------------------------------
+        print(f"[GraphBuilder] Storing cell-vertex mappings...")
         graph["cell_to_vertex_id"] = cell_to_vertex_id
         graph["vertex_id_to_cell"] = vertex_id_to_cell
 
@@ -143,6 +160,7 @@ class GraphBuilder:
             - is_terminal: bool (True if cell is start or end of any path)
         """
 
+        print(f"[GraphBuilder] Building path-induced graph, path of lengths:{[len(path) for path in paths]}",)
         g1 = ig.Graph(directed=False)
 
         cell_to_vid: Dict[BaseCell, int] = {}
@@ -155,6 +173,7 @@ class GraphBuilder:
         # --------------------------------------------------
         for path in paths:
             if not path:
+                print("[GraphBuilder] Warning: empty path encountered, skipping.")
                 continue
             terminals.add(path[0])
             terminals.add(path[-1])
@@ -209,6 +228,8 @@ if __name__ == "__main__":
     t_grid_end = time.perf_counter()
 
     outpost = GraphOutpost()
+    print("Outpost grid:", outpost.grid_parcel)
+    print(outpost.grid_parcel.grid)
     builder = GraphBuilder(outpost=outpost)
 
     t_graph_start = time.perf_counter()

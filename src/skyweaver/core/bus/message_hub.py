@@ -122,7 +122,7 @@ class MessageHub:
     # ==========================================================
 
 
-    def subscribe(self, topic: TopicsEnum, publisher_id: int, subscriber: Callable[[BaseMessage, MessageContext], None], post_subscriber: Optional[Callable[[BaseMessage, MessageContext], None]] = None) -> None:
+    def subscribe(self, topic: TopicsEnum, publisher_id: int, subscriber: Callable[[BaseMessage, MessageContext], None], post_subscriber: Optional[Callable[[BaseMessage, MessageContext, bool], None]] = None) -> None:
         """Subscribe to a specific topic."""
         self._get_broker(topic).subscribe(topic, publisher_id, subscriber, post_subscriber)
 
@@ -134,7 +134,9 @@ class MessageHub:
         self._get_broker(topic).unsubscribe(topic, publisher_id)
 
     def publish(self, topic: TopicsEnum, message: BaseMessage, message_context: MessageContext) -> None:
-
+        
+        self._register_publisher_topic(topic, message_context.from_id)
+            
         if self.monitor:
             self.monitor.on_emit(
                 topic=topic,
@@ -143,12 +145,10 @@ class MessageHub:
             )
 
         broker = self._brokers.get(topic)
-        if not broker:
-            #print(f"[MESSAGEHUB WARN] No subscribers for topic {topic.name}")
-            return
-
-        self._register_publisher_topic(topic, message_context.from_id)
-        delivered = broker.publish(topic, message, message_context)
+        if broker:
+            delivered = broker.publish(topic, message, message_context)
+        else:
+            delivered = False
 
         self.monitor.on_deliver(
                 topic=topic,
@@ -157,7 +157,8 @@ class MessageHub:
                 delivered=delivered,
             )
         
-        broker.post_publish(topic, message, message_context)
+        if broker:
+            broker.post_publish(topic, message, message_context, delivered)
         
 
 
