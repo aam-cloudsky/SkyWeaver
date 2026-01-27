@@ -133,7 +133,7 @@ class MessageHub:
         """Unsubscribe from a specific topic."""
         self._get_broker(topic).unsubscribe(topic, publisher_id)
 
-    def publish(self, topic: TopicsEnum, message: BaseMessage, message_context: MessageContext) -> None:
+    def publish(self, topic: TopicsEnum, message: BaseMessage, message_context: MessageContext) -> bool:
         
         self._register_publisher_topic(topic, message_context.from_id)
             
@@ -144,11 +144,11 @@ class MessageHub:
                 context=message_context,
             )
 
+        delivered = False
         broker = self._brokers.get(topic)
         if broker:
             delivered = broker.publish(topic, message, message_context)
-        else:
-            delivered = False
+            
 
         self.monitor.on_deliver(
                 topic=topic,
@@ -159,6 +159,8 @@ class MessageHub:
         
         if broker:
             broker.post_publish(topic, message, message_context, delivered)
+
+        return delivered
         
 
 
