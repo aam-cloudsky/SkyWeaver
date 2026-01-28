@@ -4,16 +4,15 @@
 from typing import Any, Dict, Optional, Tuple, cast
 import threading
 
-from skyweaver.core.bus.messages.base_message import BaseMessage
-from skyweaver.core.bus.messages.lifecycle_message import ServiceReady, TerminationMessage
-from skyweaver.core.bus.reserved_id_enum import ReservedIDs
+from skyweaver.core.bus.protocol.base_message import BaseMessage
+from skyweaver.core.bus.enums.reserved_id_enum import ReservedIDs
 
-
-from skyweaver.core.bus.message_hub import MessageHub, TopicsEnum, MessageContext
-from skyweaver.core.logistics.lifecycle import Lifecycle
-from skyweaver.core.logistics.parcel import Parcel, EmptyParcel
+from skyweaver.core.bus.runtime.hub import TopicsEnum, MessageContext
+from skyweaver.core.logistics.lifecycle import LifecycleState, LifecycleStateMessage
+from skyweaver.core.bus.runtime.port import Port
+from skyweaver.core.logistics.parcel import Parcel
 from skyweaver.core.logistics.depot_messages import DepotGet, DepotSet, DepotUpdate
-from skyweaver.discretization.grid.grid_parcel import GridParcel
+
 
 
 # ---------------------------------------------------------------------
@@ -31,74 +30,67 @@ class ThreadSingleton(type):
         return cls._instances[key]
 
 
-# ---------------------------------------------------------------------
-# AirspaceState — explicit, reactive, and clean
-# ---------------------------------------------------------------------
 class Depot(metaclass=ThreadSingleton):
-    """Centralized singleton data registry for the SkyWeaver simulation.
-    Holds all spatial entities and notifies listeners when updated.
-    """
+    # self declared reserved
+    __bus_id__ = ReservedIDs.DEPOT.value
 
     def __init__(self):
+        self._setup_port_hub()
+        self._setup_storage()
+        self._notify(LifecycleState.ACTIVE)
 
-        self._storage: Dict[type, Parcel] = {}
-        self._null_parcel = EmptyParcel()
+    def _setup_port_hub(self):
+        self._get_port = Port(
+            owner=self,
+            topic=TopicsEnum.DEPOT_GET,
+            on_arrive=self._on_get_request,
+            on_end_arrive=self._on_end_get_request,
+        )
 
-        self.publisher_id = ReservedIDs.DEPOT.value
-        self.message_hub: MessageHub = MessageHub()
-        self._subscribe_to_topics()
+        self._set_port = Port(
+            owner=self,
+            topic=TopicsEnum.DEPOT_SET,
+            on_arrive=self._on_set_request,
+            on_end_arrive=self._on_end_set_request,
+        )
 
-        self.lifecycle = Lifecycle(publisher_id=self.publisher_id, message_hub=self.message_hub)
-        self.lifecycle._notify_ready()
 
-
+        self._lifecycle_port = Port(
+            owner=self,
+            topic=TopicsEnum.LIFECYCLE
+        )
 
     # ------------------------------------------------------------------
-    # Parcel Management
+    # Lifecycle Management
     # ------------------------------------------------------------------
 
-    def get_parcel(self, parcel_type: type[Parcel]) -> Parcel:
-        return self._storage.get(parcel_type, self._null_parcel)
+    def _notify(self, state: LifecycleState):
+        if getattr(self, "_last_lifecycle_state", None) != state:
 
-    def set_parcel(self, parcel: Parcel):
-        if not isinstance(parcel, Parcel):
-            raise TypeError("Only Parcel instances can be registered")
+            self._lifecycle_port.send(LifecycleStateMessage(state=state))
+            self._last_lifecycle_state = state
 
-        if type(parcel) == GridParcel:
-            print(f"[Depot] Registering GridParcel with cell size: {parcel.cell_size} e type: {type(parcel.grid)}")
-        self._storage[type(parcel)] = parcel
-
-    def get_parcels(self, parcel_types: list[type[Parcel]]) -> Dict[type, Parcel]:
-        pallet: Dict[type, Parcel] = {}
-        for ptype in parcel_types:
-            parcel = self.get_parcel(ptype)
-            pallet[ptype] = parcel
-        return pallet
-            
     # ------------------------------------------------------------------
-    # Events Management
+    # Events
     # ------------------------------------------------------------------
 
 
     def _on_get_request(self, message: BaseMessage, context: MessageContext):
+
         if not isinstance(message, DepotGet):
             return
         
         mes: DepotGet = cast(DepotGet, message)
         parcel_types = mes.types
-        pallet = self.get_parcels(parcel_types)
+        return (self.get_pallet(parcel_types), context.from_id, context.trace_id)
 
-        self._on_get_request_pallet = pallet
 
-    def _on_post_get_request(self, message: BaseMessage, context: MessageContext, delivered: bool):
-
-        if context.from_id == self.publisher_id:
-            return
-
-        self.message_hub.publish(
-            topic=TopicsEnum.DEPOT_GET,
-            message=DepotUpdate(pallet=self._on_get_request_pallet),
-            message_context=self._build_answer_context(context)
+    def _on_end_get_request(self, result: Any):
+        pallet, to_id, trace_id = result
+        self._get_port.send(
+            DepotUpdate(pallet=pallet),
+            to_id=to_id,
+            reply_to=trace_id
         )
 
     def _on_set_request(self, message: BaseMessage, context: MessageContext):
@@ -108,50 +100,48 @@ class Depot(metaclass=ThreadSingleton):
         mes: DepotSet = cast(DepotSet, message)
         pallet = mes.pallet
 
-        self._on_set_request_pallet = pallet
+        confirmed_parcels: Dict[type, Parcel] = {}
         for parcel in pallet.values():
-            self.set_parcel(parcel)
-
+            change_status = self.set_parcel(parcel)
+            if change_status:
+                confirmed_parcels[type(parcel)] = parcel
+        return confirmed_parcels
+    
+    def _on_end_set_request(self, result: Any):
+        confirmed_parcels = result
         
-
-    def _on_post_set_request(self, message: BaseMessage, context: MessageContext, delivered: bool):
-
-        if context.from_id == self.publisher_id:
-            return
-        
-        MessageHub().publish(
-            topic=TopicsEnum.DEPOT_SET,
-            message=DepotUpdate(pallet=self._on_set_request_pallet),
-            message_context=self._build_answer_context(
-                context, to_id=ReservedIDs.BROADCAST.value)
+        self._set_port.send(
+            DepotUpdate(pallet=confirmed_parcels),
+            to_id=ReservedIDs.BROADCAST.value
         )
-
         
-    def _build_answer_context(self, request_context: MessageContext, to_id: Optional[int] = None) -> MessageContext:
-        """Build a response MessageContext based on a request's context."""
-        return MessageContext(
-            from_id=self.publisher_id,
-            to_id=to_id if to_id is not None else request_context.from_id,
-            reply_to=request_context.trace_id
-         )
-
+            
     # ------------------------------------------------------------------
-    # MessageHub Registration and Subscription
+    # Parcel Management
     # ------------------------------------------------------------------
 
-    def _subscribe_to_topics(self):
-        """Subscribe to relevant MessageHub topics."""
+    def _setup_storage(self):
+        self._storage: Dict[type, Parcel] = {}
 
-        self.message_hub.subscribe(
-            topic=TopicsEnum.DEPOT_GET,
-            publisher_id=self.publisher_id,
-            subscriber=self._on_get_request,
-            post_subscriber=self._on_post_get_request
-        )
+    def get_pallet(self, parcel_types: list[type[Parcel]]) -> Dict[type, Parcel]:
+        """
+        Only return registered parcels.
+        """
+        pallet: Dict[type, Parcel] = {}
+        for ptype in parcel_types:
+            parcel = self.get_parcel(ptype)
+            if parcel:
+                pallet[ptype] = parcel
+        return pallet
 
-        self.message_hub.subscribe(
-            topic=TopicsEnum.DEPOT_SET,
-            publisher_id=self.publisher_id,
-            subscriber=self._on_set_request,
-            post_subscriber=self._on_post_set_request
-        )
+    def get_parcel(self, parcel_type: type[Parcel]) -> Optional[Parcel]:
+        return self._storage.get(parcel_type)
+
+    def set_parcel(self, parcel: Parcel) -> bool:
+        if not isinstance(parcel, Parcel):
+            raise TypeError("Only Parcel instances can be registered")
+
+        self._storage[type(parcel)] = parcel
+        return True
+
+    

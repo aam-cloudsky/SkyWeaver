@@ -1,268 +1,24 @@
-from typing import Callable, Dict, Type, Any, Optional, cast, get_origin, get_args
+from typing import  Callable, ClassVar, Dict, Type, Any, Optional, cast, get_origin, get_args
 from dataclasses import dataclass, fields
 from dataclasses import dataclass, field, fields
-from typing import Dict, List, Optional, Set, Tuple, Type
+from typing import Dict, Optional, Set, Type
 
-from skyweaver.core.bus.errors import DeliveryError
-from skyweaver.core.bus.messages.base_message import BaseMessage
-from skyweaver.core.logistics.lifecycle import Lifecycle
-from skyweaver.core.logistics.parcel import Parcel, EmptyParcel
-from skyweaver.core.bus.message_hub import MessageHub, TopicsEnum, MessageContext
-from skyweaver.core.logistics.depot_messages import (
-    DepotGet,
-    DepotSet,
-    DepotUpdate,
-)
-from skyweaver.core.bus.reserved_id_enum import ReservedIDs
+from skyweaver.core.bus.protocol.base_message import BaseMessage
+from skyweaver.core.bus.protocol.message_context import MessageContext
+from skyweaver.core.bus.enums.topics_enum import TopicsEnum
+from skyweaver.core.logistics.depot_messages import DepotGet, DepotSet, DepotUpdate
+from skyweaver.core.logistics.lifecycle import LifecycleState, LifecycleStateMessage
+from skyweaver.core.bus.runtime.port import Port
+from skyweaver.core.logistics.parcel import Parcel, ParcelRole
+
+
+
 from enum import Enum, auto
 from typing import get_origin, get_args
 
 
-class ParcelRole(Enum):
-    """Role of a parcel in an Outpost."""
-    CONSUMED = auto()   # dependency
-    PRODUCED = auto()   # owned / produced here
-    UNDEFINED = auto()  # undefined role
-
-@dataclass
-class Outpost:
-    """
-    Reactive configuration unit synchronized via Depot.
-
-    - Declares parcels as dataclass fields
-    - CONSUMED parcels are dependencies
-    - PRODUCED parcels are published after transactions
-
-    # NOTE:
-    # This system assumes strong synchronization.
-    # Delivery failure indicates incorrect usage or initialization order.
-    # Local state is not rolled back on failed delivery.
-
-    """
-
-    
-
-    _transaction_open: bool = field(default=True, init=False, repr=False)
-    _publisher_id: int = field(default=-1, init=False, repr=False)
-
-    # ------------------------------------------------------------------
-    # Initialization & lifecycle
-    # ------------------------------------------------------------------
-
-    def __post_init__(self):
-        # Infrastructure
-        self._message_hub = MessageHub()
-        self._publisher_id = self._message_hub.register_publisher(owner=self)
-
-        # Parcel roles
-        self._roles = self._parcel_roles()
-        consumed: Set[Type[Parcel]] = {
-            parcel_type
-            for parcel_type, role in self._roles.items()
-            if role == ParcelRole.CONSUMED
-        }
-
-        # Lifecycle (semantic state)
-        self._lifecycle = Lifecycle(
-            publisher_id=self._publisher_id,
-            message_hub=self._message_hub,
-            dependencies=consumed,
-        )
-
-        self.dependencies_satisfied: Set[Type[Parcel]] = set()
-
-        self._lifecycle.notify_join()
-
-        # Subscriptions (reactive updates)
-        self._message_hub.subscribe(
-            topic=TopicsEnum.DEPOT_GET,
-            publisher_id=self._publisher_id,
-            subscriber=self._on_parcel_update,
-            post_subscriber=self._on_post_event
-        )
-
-        self._message_hub.subscribe(
-            topic=TopicsEnum.DEPOT_SET,
-            publisher_id=self._publisher_id,
-            subscriber=self._on_parcel_update,
-            post_subscriber=self._on_post_event
-        )
-
-        # Request ALL declared parcels (dependencies + optional state)
-
-        self._request_parcels(types=set(self._roles.keys()))
-
-
-        object.__setattr__(self, "_transaction_open", False)
-
-    # ------------------------------------------------------------------
-    # Parcel discovery
-    # ------------------------------------------------------------------
-
-    def _declared_parcels(self) -> Dict[str, Optional[Parcel]]:
-        return {
-            f.name: getattr(self, f.name)
-            for f in fields(self)
-            if isinstance(getattr(self, f.name), Parcel)
-        }
-
-
-
-    
-    def _parcel_roles(self) -> Dict[Type[Parcel], ParcelRole]:
-        roles: Dict[Type[Parcel], ParcelRole] = {}
-
-        for f in fields(self):
-            role = f.metadata.get("role")
-            
-
-            annotation = f.type
-            origin = get_origin(annotation)
-
-            if origin is Optional:
-                parcel_type = get_args(annotation)[0]
-            else:
-                parcel_type = annotation
-
-            if not isinstance(parcel_type, type):
-                continue
-
-            if issubclass(parcel_type, Parcel):
-                if not role:
-                    roles[parcel_type] = ParcelRole.UNDEFINED
-                else:
-                    roles[parcel_type] = role
-
-        return roles
-
-    # ------------------------------------------------------------------
-    # Depot interaction
-    # ------------------------------------------------------------------
-
-    def _request_parcels(self, types: Set[Type[Parcel]]):
-        self._message_hub.publish(
-            topic=TopicsEnum.DEPOT_GET,
-            message=DepotGet(types=list(types)),
-            message_context=MessageContext(
-                from_id=self._publisher_id,
-                to_id=ReservedIDs.DEPOT.value,
-            ),
-        )
-
-
-    # ------------------------------------------------------------------
-    # Message handling (GET replies and SET broadcasts)
-    # ------------------------------------------------------------------
-
-    def _on_parcel_update(self, message: BaseMessage, context: MessageContext):
-        if context.from_id == self._publisher_id:
-            print("[Outpost] Ignoring update from self")
-            return
-
-        if not isinstance(message, DepotUpdate):
-            print("[Outpost] Ignoring non-DepotUpdate message")
-            return
-
-        pallet = message.pallet
-        dependencies_satisfied: set[type[Parcel]] = set()
-
-        for f in fields(self):
-            role = f.metadata.get("role")
-            #if role is None:
-            #    continue
-
-            annotation = f.type
-            origin = get_origin(annotation)
-
-            if origin is Optional:
-                parcel_type = get_args(annotation)[0]
-            else:
-                parcel_type = annotation
-
-            if parcel_type not in pallet:
-                continue
-
-            incoming = pallet[parcel_type]
-
-            if isinstance(incoming, EmptyParcel):
-                continue
-
-            object.__setattr__(self, f.name, incoming)
-
-            if role == ParcelRole.CONSUMED:
-                dependencies_satisfied.add(parcel_type)
-
-        #self.dependencies_satisfied = dependencies_satisfied
-        object.__setattr__(self, "dependencies_satisfied", dependencies_satisfied)
-
-        
-
-    def _on_post_event(self, message: BaseMessage, context: MessageContext, delivered: bool):
-        """
-        All Outpost ↔ Depot interactions are synchronous and authoritative.
-        Any message that is not delivered invalidates the operation and must raise an error.        
-        """
-
-        if not delivered:
-            raise DeliveryError()
-            #pass
-
-        if self.dependencies_satisfied:
-            self._lifecycle.mark_dependencies_satisfied(self.dependencies_satisfied)
-        self._lifecycle.verify_and_notify()
-    # ------------------------------------------------------------------
-    # Controlled mutation
-    # ------------------------------------------------------------------
-
-    def __setattr__(self, name, value):
-        if not getattr(self, "_transaction_open", False):
-            raise AttributeError(
-                "Direct assignment is disabled. "
-                "Use 'with Outpost() as outpost:'"
-            )
-        object.__setattr__(self, name, value)
-
-    # ------------------------------------------------------------------
-    # Transaction context
-    # ------------------------------------------------------------------
-
-    def __enter__(self):
-        print("[Outpost] Beginning transaction")
-        object.__setattr__(self, "_transaction_open", True)
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        try:
-            if exc_type is None:
-                print("[Outpost] Committing transaction")
-                pallet = {
-                    type(parcel): parcel
-                    for parcel in self._declared_parcels().values()
-                    if parcel is not None
-                }
-                print("[Outpost] Prepared pallet for Depot:", pallet)
-                if pallet:
-                    print("[Outpost] Publishing updated parcels to Depot:", pallet)
-                    self._message_hub.publish(
-                        topic=TopicsEnum.DEPOT_SET,
-                        message=DepotSet(pallet=pallet),
-                        message_context=MessageContext(
-                            from_id=self._publisher_id,
-                            to_id=ReservedIDs.DEPOT.value,
-                        ),
-                    )
-        finally:
-            object.__setattr__(self, "_transaction_open", False)
-            print("[Outpost] Transaction closed")
-
-
- # ------------------------------------------------------------------
-# TODO: KEEP REFACTORING BELOW
-# ------------------------------------------------------------------
-
-
-@dataclass
-class ParcelSchema:
+@dataclass(eq=False)
+class OutpostParcelSchema:
 
     def parcel_definitions(self) -> Dict[Type[Parcel], Dict[str, Any]]:
         schema: Dict[Type[Parcel], Dict[str, Any]] = {}
@@ -289,132 +45,215 @@ class ParcelSchema:
 
         return annotation
     
-class BaseOperationEvent:
-    pass
-
-class OperationStarted(BaseOperationEvent):
-    pass
-
-class OperationCompleted(BaseOperationEvent):
-    pass
-
-
-class ParcelDepotSyncer:
-    def __init__(
-        self,
-        on_pallet_begin: Callable[[Dict[Type[Parcel], Parcel]], None],
-        on_pallet_end: Callable[[], None],
-    ):
-        self._on_pallet_begin = on_pallet_begin
-        self._on_pallet_end = on_pallet_end
-        
-        self._message_hub = MessageHub()
-        self._publisher_id = self._message_hub.register_publisher(owner=self)
-
-        self._message_hub.subscribe(
-            topic=TopicsEnum.DEPOT_GET,
-            publisher_id=self._publisher_id,
-            subscriber=self._on_incoming_update,
-            post_subscriber=self._on_post_update,
-        )
-
-        self._message_hub.subscribe(
-            topic=TopicsEnum.DEPOT_SET,
-            publisher_id=self._publisher_id,
-            subscriber=self._on_incoming_update,
-            post_subscriber=self._on_post_update,
-        )
-
-    def send_parcels_to_depot_to_update(self, pallet: Dict[Type[Parcel], Parcel]):
-        self._message_hub.publish(
-            topic=TopicsEnum.DEPOT_SET,
-            message=DepotSet(pallet=pallet),
-            message_context=MessageContext(
-                from_id=self._publisher_id,
-                to_id=ReservedIDs.DEPOT.value,
-            ),
-        )
-
-    def request_updated_parcels(self, types: Set[Type[Parcel]]):
-        self._message_hub.publish(
-            topic=TopicsEnum.DEPOT_GET,
-            message=DepotGet(types=list(types)),
-            message_context=MessageContext(
-                from_id=self._publisher_id,
-                to_id=ReservedIDs.DEPOT.value,
-            ),
-        )
-
-    def _on_incoming_update(self, message, context):
-        if self._should_ignore(message, context):
-            return
-        self._on_pallet_begin(cast(DepotUpdate, message).pallet)
-
-
-    def _on_post_update(self, message, context, delivered: bool):
-        if self._should_ignore(message, context):
-            return
-        self._on_pallet_end()
-
-    def _should_ignore(self, message, context) -> bool:
-        if context.from_id == self._publisher_id:
-            return True
-
-        if not isinstance(message, DepotUpdate):
-            return True
-
-        return False
-
+    def _build_pallet(self):
+        pallet: Dict[Type[Parcel], Parcel] = {}
+        for parcel_type in self.parcel_definitions().keys():
+            parcel = getattr(self, self.parcel_definitions()[parcel_type]["field"])
+            if parcel is not None:
+                pallet[parcel_type] = parcel
+        return pallet
 
 class OutpostOperationalStates(Enum):
     IDLE = auto()
-    BUSY = auto()
-    ERROR = auto()
-    ON_UPDATE = auto()
-
-    ON_SENDING_TO_DEPOT = auto()
-    ON_RECEIVING_FROM_DEPOT = auto()
-
     BEGINNING_OPERATION = auto()
-    COMPLETING_OPERATION = auto()
     TRANSACTION = auto()
+    ON_RECEIVING_FROM_DEPOT = auto()
 
 
 @dataclass(frozen=True)
 class StateFlags:
-    _block_updates: bool
+    _permit_external_parcels_mutation: bool
+    _permit_internal_parcel_mutation: bool
+    _permit_internal_private_mutation: bool
+
+
+@dataclass(eq=False)
+class Outpost(OutpostParcelSchema):
+    """
+    Reactive configuration unit synchronized via Depot.
+
+    - Declares parcels as dataclass fields
+    - CONSUMED parcels are dependencies
+    - PRODUCED parcels are published after transactions
+
+    # NOTE:
+    # This system assumes strong synchronization.
+    # Delivery failure indicates incorrect usage or initialization order.
+    # Local state is not rolled back on failed delivery.
+
+    """
+    "Máquina Reativa Orientada a Eventos QUE ESCOLHE O ESTADO MAIS ADEQUADO A CADA EVENTO"
     
 
-@dataclass
-class BaseReactive(ParcelSchema):
-    "Máquina Reativa Orientada a Eventos QUE ESCOLHE O ESTADO MAIS ADEQUADO A CADA EVENTO"
-    #TODO: futuro outpost reativo
-    
+    _STATE_FLAG_MAP: ClassVar[Dict[OutpostOperationalStates, StateFlags]] = {
+        OutpostOperationalStates.IDLE: StateFlags(
+            _permit_external_parcels_mutation=False,
+            _permit_internal_parcel_mutation=False,
+            _permit_internal_private_mutation=False,
+        ),
+        OutpostOperationalStates.TRANSACTION: StateFlags(
+            _permit_external_parcels_mutation=True,
+            _permit_internal_parcel_mutation=True,
+            _permit_internal_private_mutation=True,
+        ),
+        OutpostOperationalStates.BEGINNING_OPERATION: StateFlags(
+            _permit_external_parcels_mutation=False,
+            _permit_internal_parcel_mutation=True,
+            _permit_internal_private_mutation=True,
+        ),
+        OutpostOperationalStates.ON_RECEIVING_FROM_DEPOT: StateFlags(
+            _permit_external_parcels_mutation=False,
+            _permit_internal_parcel_mutation=True,
+            _permit_internal_private_mutation=True,
+        ),
+    }
+
+
+    #=======================================================
+    # Operational State Management
+    # =======================================================
 
     def __post_init__(self):
-        OutpostOperationalStates.BEGINNING_OPERATION
-        self._end_event()
+        
+        self._init_flags()
+        self._transition_state(OutpostOperationalStates.BEGINNING_OPERATION)
+        self._setup_port_hub()
+        self._request_pallet()
 
-    def _on_update(self):
-        OutpostOperationalStates.ON_RECEIVING_FROM_DEPOT
-        self._end_event()
+
+    def _init_flags(self):
+        self._flags: StateFlags = StateFlags(_permit_external_parcels_mutation=False,
+                                             _permit_internal_parcel_mutation=False,
+                                             _permit_internal_private_mutation=True)
+
+    def _notify(self, state: LifecycleState):
+        if getattr(self, "_last_lifecycle_state", None) != state:
+                
+            self._lifecycle_port.send(LifecycleStateMessage(state=state))
+            self._last_lifecycle_state = state
+
+    def set_on_pallet_sync(self, callback: Callable[[Dict[Type[Parcel], Parcel]], None]):
+        #self._on_pallet_sync: Callable[[Dict[Type[Parcel], Parcel]], None] = callback
+        object.__setattr__(self, "_on_pallet_sync", callback)
+
+
+    # =======================================================
+    # Port Operations
+    # =======================================================
+
+    def _setup_port_hub(self):
+
+        self._set_port = Port(
+            owner=self,
+            topic=TopicsEnum.DEPOT_SET,
+            on_arrive=self._on_pallet_arrive,
+            on_end_arrive=self._on_pallet_end,
+        )
+
+        self._get_port = Port(
+            owner=self,
+            topic=TopicsEnum.DEPOT_GET,
+            on_arrive=self._on_pallet_arrive,
+            on_end_arrive=self._on_pallet_end,
+        )
+
+        self._lifecycle_port = Port(
+            owner=self,
+            topic=TopicsEnum.LIFECYCLE
+        )
+
+        self._notify(LifecycleState.JOINED)
+
+
+    #=======================================================
+    # On Pallet Management
+    #=======================================================
+
+    def _on_pallet_arrive(self, message: BaseMessage, context: MessageContext):
+
+        mes = cast(DepotUpdate, message)
+        self._transition_state(OutpostOperationalStates.ON_RECEIVING_FROM_DEPOT)
+        self._set_parcels(mes.pallet)
+        
+        _on_pallet_sync = getattr(self, "_on_pallet_sync", lambda pallet: None)
+        _on_pallet_sync(self._build_pallet())
+
+        
+    def _on_pallet_end(self, _):
+        self._transition_state(OutpostOperationalStates.IDLE)
+
+    def _request_pallet(self):
+        pallet_types = list(self.parcel_definitions().keys())
+        self._get_port.send(DepotGet(types=pallet_types))
+
+    def _commit_pallet(self):
+        pallet = self._build_pallet()
+        if pallet:
+            self._set_port.send(DepotSet(pallet=pallet))
+
+    #=======================================================
+    # Transaction Context
+    #=======================================================    
 
     def __enter__(self):
-        OutpostOperationalStates.TRANSACTION
-        pass
+        self._transition_state(OutpostOperationalStates.TRANSACTION)
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        OutpostOperationalStates.ON_SENDING_TO_DEPOT
-        self._end_event()
-
-    def _end_event(self):
-        OutpostOperationalStates.IDLE
-
-    def _set_parcels(self, parcel):
-        pass
+        self._commit_pallet()
+        self._transition_state(OutpostOperationalStates.IDLE)
+        
 
     def _transition_state(self, new_state: OutpostOperationalStates):
-        if new_state == OutpostOperationalStates.IDLE:
-            self._flags = StateFlags(_block_updates = False)
-        if new_state == OutpostOperationalStates.TRANSACTION:
-            self._flags = StateFlags(_block_updates = True)
+        """
+        All state transitions must update flags accordingly.
+        1. IDLE: no parcel changes allowed
+        """
+        #self._state = new_state
+        #self._flags = self._STATE_FLAG_MAP[new_state]
+
+        
+        object.__setattr__(self, "_flags", self._STATE_FLAG_MAP[new_state])
+        object.__setattr__(self, "_state", new_state)
+        
+
+
+    #======================================================
+    # Flagged Functions
+    # set parcels must only works within permitted contexts
+    # it is blocked by __setattr__
+    #=======================================================
+
+    def _set_parcels(self, pallet: Dict[Type[Parcel], Parcel]):
+
+        if not self._flags._permit_internal_parcel_mutation:
+            raise RuntimeError(
+                "_set_parcels called in a state that does not allow parcel mutation"
+            )
+    
+        definitions = self.parcel_definitions()
+        for parcel_type, parcel in pallet.items():
+            if parcel_type not in definitions:
+                continue   
+            field_name = definitions[parcel_type]["field"]
+            object.__setattr__(self, field_name, parcel)
+
+    def __setattr__(self, name, value):
+        
+        # Durante __init__ / __post_init__, _flags ainda não existe
+        if not hasattr(self, "_flags"):
+            object.__setattr__(self, name, value)
+            return
+
+        if name.startswith("_") and self._flags._permit_internal_private_mutation:
+            object.__setattr__(self, name, value)
+            return
+        
+        if self._flags._permit_external_parcels_mutation:
+            object.__setattr__(self, name, value)
+            return
+        
+        raise AttributeError(
+            "Direct assignment is disabled. "
+            "Use 'with Outpost() as outpost:'"
+        )

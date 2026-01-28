@@ -2,7 +2,7 @@ from abc import abstractmethod
 from typing import List
 
 from shapely import Point
-from skyweaver.instance_segmentation.clustering.cluster_outpost import ClusterOutpost
+from skyweaver.clustering.logistics.cluster_outpost import ClusterOutpost
 
 
 

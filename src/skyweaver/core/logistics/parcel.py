@@ -1,10 +1,14 @@
-from dataclasses import dataclass
-
-
 # core/logistics/parcel.py
 
-from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from abc import ABC
+from enum import Enum, auto
 
+class ParcelRole(Enum):
+    """Role of a parcel in an Outpost."""
+    CONSUMED = auto()   # dependency
+    PRODUCED = auto()   # owned / produced here
+    UNDEFINED = auto()  # undefined role
 
 class Parcel(ABC):
     """

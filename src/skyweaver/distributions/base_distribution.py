@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Tuple
 import numpy as np
 
-from skyweaver.distributions.distribution_outpost import DistributionOutpost
+from skyweaver.distributions.logistics.distribution_outpost import DistributionOutpost
 
 
 class BaseDistribution(ABC):

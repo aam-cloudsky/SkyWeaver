@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Dict
 from skyweaver.core.logistics.parcel import Parcel
-from skyweaver.core.bus.messages.base_message import BaseMessage
+from skyweaver.core.bus.protocol.base_message import BaseMessage
 
 
 @dataclass(frozen=True)
