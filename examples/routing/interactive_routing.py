@@ -1,6 +1,7 @@
 
 import random
 import time
+from collections import Counter
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon as MplPolygon
 
@@ -129,7 +130,7 @@ def on_mouse_move(event):
     terminals = fixed_terminals + [cell]
 
     # --------------------------------------------------
-    # Compute terminal paths (G0 → G1)
+    # Compute terminal paths (G0 → Paths)
     # --------------------------------------------------
     t0 = time.perf_counter()
     paths = compute_terminal_paths(planner, terminals)
@@ -139,17 +140,17 @@ def on_mouse_move(event):
         return
 
     # --------------------------------------------------
-    # Build paths graph (G1 → G2)
+    # Build paths graph (Paths → G1)
     # --------------------------------------------------
-    g2 = builder.build_path_induced_graph(paths)
+    g1 = builder.build_path_induced_graph(paths)
 
     # --------------------------------------------------
-    # Plot G2 edges
+    # Plot G1 edges
     # --------------------------------------------------
-    for e in g2.es:
+    for e in g1.es:
         v1, v2 = e.tuple
-        c1 = g2.vs[v1]["cell"]
-        c2 = g2.vs[v2]["cell"]
+        c1 = g1.vs[v1]["cell"]
+        c2 = g1.vs[v2]["cell"]
 
         xs = [c1.cartesian_center.x, c2.cartesian_center.x]
         ys = [c1.cartesian_center.y, c2.cartesian_center.y]
@@ -164,22 +165,40 @@ def on_mouse_move(event):
         )
         dynamic_artists.append(line)
 
-    # --------------------------------------------------
-    # Betweenness (intermediates only)
-    # --------------------------------------------------
-    bet = g2.betweenness()
 
-    for v, b in zip(g2.vs, bet):
+    # --------------------------------------------------
+    # Betweenness
+    #  - Flow-based path centrality (OD-restricted)
+    # --------------------------------------------------
+
+    centrality = Counter()
+
+    for path in paths:
+        if len(path) <= 2:
+            continue  # caminho direto, sem intermediários
+
+        for cell_mid in path[1:-1]:  # exclui terminais
+            centrality[cell_mid] += 1
+
+
+    # --------------------------------------------------
+    # Print Betweenness
+    # --------------------------------------------------
+    for v in g1.vs:
 
         if v["is_terminal"]:
             continue
 
         cell_v = v["cell"]
+        value = centrality.get(cell_v, 0)
+
+        if value == 0:
+            continue
 
         txt = ax.text(
             cell_v.cartesian_center.x,
             cell_v.cartesian_center.y,
-            f"{b:.2f}",
+            f"{value}",
             fontsize=9,
             color="darkred",
             ha="center",
