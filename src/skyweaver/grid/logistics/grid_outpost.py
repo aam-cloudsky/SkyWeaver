@@ -15,13 +15,16 @@ class GridOutpost(Outpost):
     """
 
     airspace_points: AirspacePoints = field(
-        default_factory=AirspacePoints
+        default_factory=AirspacePoints,
+        metadata={"role": "consumed"},
     )
     
     cluster_parcel: ClusterParcel = field(
-        default_factory=ClusterParcel
+        default_factory=ClusterParcel,
+        metadata={"role": "consumed"},
     )
 
     grid_parcel: GridParcel = field(
-        default_factory=GridParcel
+        default_factory=GridParcel,
+        metadata={"role": "produced"},
     )

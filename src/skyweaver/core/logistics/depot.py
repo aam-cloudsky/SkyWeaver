@@ -3,6 +3,7 @@
 
 from typing import Any, Dict, Optional, Tuple, cast
 import threading
+from skyweaver.core.logistics.validity.sentinel import ValidityTransition, Sentinel
 
 from skyweaver.core.bus.protocol.base_message import BaseMessage
 from skyweaver.core.bus.enums.reserved_id_enum import ReservedIDs
@@ -11,7 +12,7 @@ from skyweaver.core.bus.runtime.hub import TopicsEnum, MessageContext
 from skyweaver.core.logistics.lifecycle import LifecycleState, LifecycleStateMessage
 from skyweaver.core.bus.runtime.port import Port
 from skyweaver.core.logistics.parcel import Parcel
-from skyweaver.core.logistics.depot_messages import DepotGet, DepotSet, DepotUpdate
+from skyweaver.core.logistics.depot_messages import DepotGet, DepotRegistry, DepotSet, DepotUpdate
 
 
 
@@ -35,11 +36,21 @@ class Depot(metaclass=ThreadSingleton):
     __bus_id__ = ReservedIDs.DEPOT.value
 
     def __init__(self):
+
+        self.sentinel = Sentinel()
         self._setup_port_hub()
         self._setup_storage()
         self._notify(LifecycleState.ACTIVE)
 
     def _setup_port_hub(self):
+
+        self._get_port = Port(
+            owner=self,
+            topic=TopicsEnum.DEPOT_REGISTRY,
+            on_arrive=self._on_registry_request,
+            on_end_arrive=self._on_end_registry_request,
+        )
+
         self._get_port = Port(
             owner=self,
             topic=TopicsEnum.DEPOT_GET,
@@ -74,6 +85,14 @@ class Depot(metaclass=ThreadSingleton):
     # Events
     # ------------------------------------------------------------------
 
+    def _on_registry_request(self, message: BaseMessage, context: MessageContext):
+        self.sentinel.register(message=cast(DepotRegistry, message), context=context)
+
+    def _on_end_registry_request(self, result: Any):
+        pass
+
+     # ------------------------------------------------------------------
+
 
     def _on_get_request(self, message: BaseMessage, context: MessageContext):
 
@@ -97,6 +116,11 @@ class Depot(metaclass=ThreadSingleton):
         if not isinstance(message, DepotSet):
             return
         
+        validity_transition: ValidityTransition = self.sentinel.verify_validity(
+            message=cast(DepotSet, message), context=context)
+        
+        
+        
         mes: DepotSet = cast(DepotSet, message)
         pallet = mes.pallet
 
@@ -105,10 +129,12 @@ class Depot(metaclass=ThreadSingleton):
             change_status = self.set_parcel(parcel)
             if change_status:
                 confirmed_parcels[type(parcel)] = parcel
-        return confirmed_parcels
+        return confirmed_parcels, validity_transition
     
     def _on_end_set_request(self, result: Any):
-        confirmed_parcels = result
+        confirmed_parcels, validity_transition = result
+
+        print("DEPOT SET VALIDITY TRANSITION:", validity_transition)
         
         self._set_port.send(
             DepotUpdate(pallet=confirmed_parcels),

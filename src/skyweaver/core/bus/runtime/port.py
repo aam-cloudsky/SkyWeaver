@@ -35,12 +35,21 @@ class Port:
         )
 
     def send(self, message: BaseMessage, to_id: int = ReservedIDs.DEPOT.value, reply_to: Optional[UUID] = None):
+
+        publisher_type = self._message_hub.resolve_owner_type(self._publisher_id)
+
+        if publisher_type is None:
+            raise RuntimeError(
+                "Invariant violation: Port has publisher_id but no owner_type registered"
+            )
+
         self._message_hub.publish(
             topic=self.topic,
             message=message,
             message_context=MessageContext(
                 from_id=self._publisher_id,
                 to_id=to_id,
+                publisher_type=publisher_type,
                 reply_to=reply_to,
             ),
         )

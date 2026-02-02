@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import  Callable, ClassVar, Dict, Type, Any, Optional, cast, get_origin, get_args
 from dataclasses import dataclass, fields
 from dataclasses import dataclass, field, fields
@@ -6,7 +7,7 @@ from typing import Dict, Optional, Set, Type
 from skyweaver.core.bus.protocol.base_message import BaseMessage
 from skyweaver.core.bus.protocol.message_context import MessageContext
 from skyweaver.core.bus.enums.topics_enum import TopicsEnum
-from skyweaver.core.logistics.depot_messages import DepotGet, DepotSet, DepotUpdate
+from skyweaver.core.logistics.depot_messages import DepotGet, DepotRegistry, DepotSet, DepotUpdate
 from skyweaver.core.logistics.lifecycle import LifecycleState, LifecycleStateMessage
 from skyweaver.core.bus.runtime.port import Port
 from skyweaver.core.logistics.parcel import Parcel, ParcelRole
@@ -52,6 +53,42 @@ class OutpostParcelSchema:
             if parcel is not None:
                 pallet[parcel_type] = parcel
         return pallet
+    
+    @classmethod
+    def parcels_by_role(
+        cls
+    ) -> Dict[ParcelRole, Set[Type[Parcel]]]:
+        """
+        Canonical projection of parcel roles declared in the Outpost schema.
+
+        Returns a mapping:
+            ParcelRole -> set[ParcelType]
+
+        This method is intentionally generic: new ParcelRole values
+        are automatically supported.
+        """
+        roles: Dict[ParcelRole, Set[Type[Parcel]]] = defaultdict(set)
+
+        # usamos o schema declarativo da classe
+        for f in fields(cls):
+            parcel_type = cls._resolve_parcel_type_static(f)
+            if not issubclass(parcel_type, Parcel):
+                continue
+
+            role = f.metadata.get("role", ParcelRole.UNDEFINED)
+            roles[role].add(parcel_type)
+
+        return dict(roles)
+
+    @staticmethod
+    def _resolve_parcel_type_static(field) -> Type[Parcel]:
+        annotation = field.type
+        origin = get_origin(annotation)
+
+        if origin is Optional:
+            return get_args(annotation)[0]
+
+        return annotation
 
 class OutpostOperationalStates(Enum):
     IDLE = auto()
@@ -118,6 +155,7 @@ class Outpost(OutpostParcelSchema):
         self._init_flags()
         self._transition_state(OutpostOperationalStates.BEGINNING_OPERATION)
         self._setup_port_hub()
+        self._register_with_depot()
         self._request_pallet()
 
 
@@ -143,6 +181,11 @@ class Outpost(OutpostParcelSchema):
 
     def _setup_port_hub(self):
 
+        self._registry_port = Port(
+            owner=self,
+            topic=TopicsEnum.DEPOT_REGISTRY,
+        )
+
         self._set_port = Port(
             owner=self,
             topic=TopicsEnum.DEPOT_SET,
@@ -164,10 +207,21 @@ class Outpost(OutpostParcelSchema):
 
         self._notify(LifecycleState.JOINED)
 
+    def _register_with_depot(self):
+        self._registry_port.send(
+            DepotRegistry(
+                outpost_type=type(self),
+                parcels_by_role=self.parcels_by_role()
+            )
+        )
 
     #=======================================================
     # On Pallet Management
     #=======================================================
+
+    def _request_pallet(self):
+        pallet_types = list(self.parcel_definitions().keys())
+        self._get_port.send(DepotGet(types=pallet_types))
 
     def _on_pallet_arrive(self, message: BaseMessage, context: MessageContext):
 
@@ -182,9 +236,7 @@ class Outpost(OutpostParcelSchema):
     def _on_pallet_end(self, _):
         self._transition_state(OutpostOperationalStates.IDLE)
 
-    def _request_pallet(self):
-        pallet_types = list(self.parcel_definitions().keys())
-        self._get_port.send(DepotGet(types=pallet_types))
+    
 
     def _commit_pallet(self):
         pallet = self._build_pallet()

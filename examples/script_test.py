@@ -25,10 +25,10 @@ class OtherParcel(Parcel):
 
 
 @dataclass
-class BaseOutpost(Outpost):
+class ExampleOutpost(Outpost):
     fuel: FuelParcel = field(default_factory=FuelParcel, metadata={"role": ParcelRole.PRODUCED})
     other: OtherParcel = field(default_factory=OtherParcel, metadata={
-                               "role": ParcelRole.CONSUMED})
+                               "role": ParcelRole.PRODUCED})
 
 
 
@@ -40,8 +40,8 @@ def main():
     depot = Depot()
 
     print("Creating outposts...")
-    a = BaseOutpost()
-    b = BaseOutpost()
+    a = ExampleOutpost()
+    b = ExampleOutpost()
 
     print("Initial state:")
     print("A:", a.fuel.amount)
@@ -56,8 +56,7 @@ def main():
     print("B:", b.fuel.amount, b.fuel.other)
 
     
-
-    c = BaseOutpost()
+    c = ExampleOutpost()
 
     print("\nAfter A update and creating C:")
     print("A:", a.fuel.amount, a.fuel.other)

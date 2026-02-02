@@ -6,7 +6,7 @@ from typing import Dict, Callable, List, Optional, Tuple
 import threading
 
 from skyweaver.core.bus.runtime.broker import Broker
-from skyweaver.core.bus.runtime.id_manager import IDManager
+from skyweaver.core.bus.runtime.id_manager import IDManager, IDRecord
 from skyweaver.core.bus.protocol.message_context import MessageContext
 from skyweaver.core.bus.protocol.message_handler import MessageHandler
 from skyweaver.core.bus.protocol.base_message import BaseMessage
@@ -77,7 +77,13 @@ class MessageHub:
         with self._lock:
             self._id_manager.release_id(publisher_id)
 
-    
+    def resolve_owner(self, publisher_id: int) -> object | None:
+        record = self._id_manager._by_id.get(publisher_id)
+        return record.owner if record else None
+
+    def resolve_owner_type(self, publisher_id: int) -> type | None:
+        owner = self.resolve_owner(publisher_id)
+        return type(owner) if owner else None
 
     # ==========================================================
     # Broker Management
@@ -127,12 +133,3 @@ class MessageHub:
     def _get_broker(self, topic: TopicsEnum) -> Broker:
         """Get or create a broker for a specific topic."""
         return self._brokers.setdefault(topic, Broker())
-   
-
-    def create_message_context(self, from_id: int, to_id: Optional[int] = None) -> MessageContext:
-        """Create a MessageContext for publishing messages."""
-
-        if to_id is None:
-            to_id = ReservedIDs.BROADCAST.value
-        return MessageContext(from_id=from_id, to_id=to_id)
-    

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from typing import Dict
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel import Parcel, ParcelRole
 from skyweaver.core.bus.protocol.base_message import BaseMessage
 
 
@@ -18,3 +18,9 @@ class DepotGet(BaseMessage):
 @dataclass(frozen=True)
 class DepotSet(BaseMessage):
     pallet: Dict[type, Parcel]
+
+
+@dataclass(frozen=True)
+class DepotRegistry(BaseMessage):
+    outpost_type: type        
+    parcels_by_role: Dict[ParcelRole, set[type[Parcel]]]

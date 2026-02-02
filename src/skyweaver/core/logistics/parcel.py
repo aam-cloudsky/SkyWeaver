@@ -7,7 +7,9 @@ from enum import Enum, auto
 class ParcelRole(Enum):
     """Role of a parcel in an Outpost."""
     CONSUMED = auto()   # dependency
+    MUTATES = auto()    # can change, but it is not the owner
     PRODUCED = auto()   # owned / produced here
+    
     UNDEFINED = auto()  # undefined role
 
 class Parcel(ABC):

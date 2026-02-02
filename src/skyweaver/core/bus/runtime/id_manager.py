@@ -34,25 +34,32 @@ class IDManager:
         # start after reserved IDs
         self._counter: int = max(r.value for r in ReservedIDs)
 
+
     # -------------------------------------------------
     # Public API
     # -------------------------------------------------
 
     def get_or_create_id(self, owner: object) -> int:
-        """
-        Return an existing ID for this owner, or create a new one.
-        """
-
-        reserved = self._reserved_owner_solver(owner)
-        if reserved is not None:
-            return reserved
-
         owner_identity = id(owner)
 
         if owner_identity in self._by_owner_id:
             return self._by_owner_id[owner_identity]
 
+        reserved = getattr(owner, "__bus_id__", None)
+
+        if reserved is not None:
+            self._register_reserved(owner, reserved)
+            return reserved
+
         return self._register(owner)
+    
+    def _register_reserved(self, owner: object, reserved_id: int) -> None:
+        record = IDRecord(owner=owner, id=reserved_id)
+
+        self._by_id[reserved_id] = record
+        self._by_owner_id[id(owner)] = reserved_id
+
+
 
     def release_id(self, publisher_id: int) -> None:
         """
