@@ -3,6 +3,7 @@
 
 from typing import Any, Dict, Optional, Tuple, cast
 import threading
+from skyweaver.core.bus.protocol.validity_message import ValidityMessage
 from skyweaver.core.logistics.validity.sentinel import ValidityTransition, Sentinel
 
 from skyweaver.core.bus.protocol.base_message import BaseMessage
@@ -44,7 +45,7 @@ class Depot(metaclass=ThreadSingleton):
 
     def _setup_port_hub(self):
 
-        self._get_port = Port(
+        self._registry_port = Port(
             owner=self,
             topic=TopicsEnum.DEPOT_REGISTRY,
             on_arrive=self._on_registry_request,
@@ -65,6 +66,10 @@ class Depot(metaclass=ThreadSingleton):
             on_end_arrive=self._on_end_set_request,
         )
 
+        self._validity_port = Port(
+            owner=self,
+            topic=TopicsEnum.VALIDITY,
+        )
 
         self._lifecycle_port = Port(
             owner=self,
@@ -86,10 +91,16 @@ class Depot(metaclass=ThreadSingleton):
     # ------------------------------------------------------------------
 
     def _on_registry_request(self, message: BaseMessage, context: MessageContext):
-        self.sentinel.register(message=cast(DepotRegistry, message), context=context)
+        depot_registry = cast(DepotRegistry, message)
+        self.sentinel.register(message=depot_registry, context=context)
+
+        return depot_registry, context.from_id, context.trace_id
 
     def _on_end_registry_request(self, result: Any):
-        pass
+        depot_registry, to_id, trace_id = result
+        self._registry_port.send(message=DepotRegistry(outpost_type=depot_registry.outpost_type, parcels_by_role=depot_registry.parcels_by_role, registered=True)
+                                 , to_id=to_id, reply_to=trace_id)
+
 
      # ------------------------------------------------------------------
 
@@ -119,7 +130,7 @@ class Depot(metaclass=ThreadSingleton):
         validity_transition: ValidityTransition = self.sentinel.verify_validity(
             message=cast(DepotSet, message), context=context)
         
-        
+        # TODO: Can ONLY mutate if valid! dismiss otherwise
         
         mes: DepotSet = cast(DepotSet, message)
         pallet = mes.pallet
@@ -129,12 +140,18 @@ class Depot(metaclass=ThreadSingleton):
             change_status = self.set_parcel(parcel)
             if change_status:
                 confirmed_parcels[type(parcel)] = parcel
-        return confirmed_parcels, validity_transition
+        return confirmed_parcels, validity_transition, context.from_id
     
     def _on_end_set_request(self, result: Any):
-        confirmed_parcels, validity_transition = result
-
-        print("DEPOT SET VALIDITY TRANSITION:", validity_transition)
+        confirmed_parcels, validity_transition, validity_source_id = result
+        if (
+            validity_transition.became_valid
+            or validity_transition.became_invalid
+        ):
+            self._validity_port.send(
+                ValidityMessage(validity_transition=validity_transition,
+                                validity_source_id=validity_source_id)
+            )
         
         self._set_port.send(
             DepotUpdate(pallet=confirmed_parcels),

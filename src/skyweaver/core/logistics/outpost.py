@@ -155,7 +155,7 @@ class Outpost(OutpostParcelSchema):
         self._init_flags()
         self._transition_state(OutpostOperationalStates.BEGINNING_OPERATION)
         self._setup_port_hub()
-        self._register_with_depot()
+        
         self._request_pallet()
 
 
@@ -166,13 +166,14 @@ class Outpost(OutpostParcelSchema):
 
     def _notify(self, state: LifecycleState):
         if getattr(self, "_last_lifecycle_state", None) != state:
-                
+            
             self._lifecycle_port.send(LifecycleStateMessage(state=state))
             self._last_lifecycle_state = state
 
     def set_on_pallet_sync(self, callback: Callable[[Dict[Type[Parcel], Parcel]], None]):
         #self._on_pallet_sync: Callable[[Dict[Type[Parcel], Parcel]], None] = callback
         object.__setattr__(self, "_on_pallet_sync", callback)
+
 
 
     # =======================================================
@@ -184,6 +185,8 @@ class Outpost(OutpostParcelSchema):
         self._registry_port = Port(
             owner=self,
             topic=TopicsEnum.DEPOT_REGISTRY,
+            on_arrive=self._on_registry_arrive,
+            on_end_arrive=self._on_registry_arrive_end,
         )
 
         self._set_port = Port(
@@ -196,8 +199,8 @@ class Outpost(OutpostParcelSchema):
         self._get_port = Port(
             owner=self,
             topic=TopicsEnum.DEPOT_GET,
-            on_arrive=self._on_pallet_arrive,
-            on_end_arrive=self._on_pallet_end,
+            on_arrive=self._on_get_pallet_arrive,
+            on_end_arrive=self._on_get_pallet_end,
         )
 
         self._lifecycle_port = Port(
@@ -205,7 +208,9 @@ class Outpost(OutpostParcelSchema):
             topic=TopicsEnum.LIFECYCLE
         )
 
-        self._notify(LifecycleState.JOINED)
+        self._register_with_depot()
+
+        
 
     def _register_with_depot(self):
         self._registry_port.send(
@@ -214,6 +219,24 @@ class Outpost(OutpostParcelSchema):
                 parcels_by_role=self.parcels_by_role()
             )
         )
+
+    def _on_registry_arrive(self, message: BaseMessage, context: MessageContext):
+        depot_registry = cast(DepotRegistry, message)
+        return depot_registry.registered
+
+    def _on_registry_arrive_end(self, result: Any):
+        registered = result
+        if registered:
+            self._notify(LifecycleState.JOINED)
+        else:
+            self._notify(LifecycleState.FAILED_TO_JOIN)
+
+    def _on_get_pallet_arrive(self, message: BaseMessage, context: MessageContext):
+        self._on_pallet_arrive(message, context)
+
+    def _on_get_pallet_end(self, result):
+        self._notify(LifecycleState.SYNCED)
+        self._transition_state(OutpostOperationalStates.IDLE)
 
     #=======================================================
     # On Pallet Management

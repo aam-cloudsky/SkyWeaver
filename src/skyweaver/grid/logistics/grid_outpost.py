@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from skyweaver.core.logistics.outpost import Outpost
 
+from skyweaver.core.logistics.parcel import ParcelRole
 from skyweaver.grid.logistics.grid_parcel import GridParcel
 from skyweaver.distributions.logistics.airspace_points import AirspacePoints
 from skyweaver.clustering.logistics.cluster_parcel import ClusterParcel
@@ -16,15 +17,15 @@ class GridOutpost(Outpost):
 
     airspace_points: AirspacePoints = field(
         default_factory=AirspacePoints,
-        metadata={"role": "consumed"},
+        metadata={"role": ParcelRole.CONSUMED},
     )
     
     cluster_parcel: ClusterParcel = field(
         default_factory=ClusterParcel,
-        metadata={"role": "consumed"},
+        metadata={"role": ParcelRole.CONSUMED},
     )
 
     grid_parcel: GridParcel = field(
         default_factory=GridParcel,
-        metadata={"role": "produced"},
+        metadata={"role": ParcelRole.PRODUCED},
     )

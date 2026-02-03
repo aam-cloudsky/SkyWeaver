@@ -9,3 +9,4 @@ class TopicsEnum(IntEnum):
     LIFECYCLE = auto()
     NOTIFY = auto()
     DEPOT_UPDATE = auto()
+    VALIDITY = auto()

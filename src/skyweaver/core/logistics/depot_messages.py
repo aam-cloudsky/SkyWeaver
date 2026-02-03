@@ -24,3 +24,4 @@ class DepotSet(BaseMessage):
 class DepotRegistry(BaseMessage):
     outpost_type: type        
     parcels_by_role: Dict[ParcelRole, set[type[Parcel]]]
+    registered: bool = False

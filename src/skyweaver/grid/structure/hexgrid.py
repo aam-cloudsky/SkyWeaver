@@ -79,6 +79,8 @@ class HexGrid(BaseGrid):
         """Check if the distance between two points is within a threshold."""
         return point_a.distance(point_b) <= threshold
 
+    # TODO: Probably would be better remove this method
+    # simplify the logic, and let availavility be computed externally
     def _compute_availability(self, cell: HexCell) -> bool:
         for cluster in self.outpost.cluster_parcel.clusters:
             # Fast rejection

@@ -8,6 +8,8 @@ from skyweaver.core.bus.protocol.base_message import BaseMessage
 
 class LifecycleState(Enum):
     JOINED = auto()
+    FAILED_TO_JOIN = auto()
+    SYNCED = auto()
     READY = auto()
     ACTIVE = auto()
     BUSY = auto()

@@ -3,7 +3,7 @@
 from enum import Enum, auto
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, cast
 from uuid import UUID
 
 from rich.console import Console
@@ -15,6 +15,7 @@ from skyweaver.core.bus.protocol.base_message import BaseMessage
 
 from skyweaver.core.bus.enums.reserved_id_enum import ReservedIDs
 from skyweaver.core.bus.enums.topics_enum import TopicsEnum
+from skyweaver.core.bus.protocol.validity_message import ValidityMessage
 from skyweaver.core.logistics.lifecycle import LifecycleState, LifecycleStateMessage
 
 #TODO: Refactor monitor to have separate classes for rendering and trace management
@@ -128,6 +129,18 @@ class EventMonitor:
             self.renderer.on_lifecycle_event(topic, message, context)
             return
 
+        if topic == TopicsEnum.VALIDITY:
+            self.renderer.on_validity_transition(topic, message, context)
+            return
+
+        if topic == TopicsEnum.DEPOT_REGISTRY:
+            return
+        
+        if topic == TopicsEnum.DEPOT_GET:
+            return
+        
+        if topic == TopicsEnum.DEPOT_SET:
+            return
         # SEMPRE cria um trace novo
         self._traces[context.trace_id] = self._gen_trace(topic, message, context)
 
@@ -174,6 +187,8 @@ class EventRenderer:
     def __init__(self, publisher_registry: Dict[int, PublisherInfo]):
         self.console = Console()
         self.publisher_registry: Dict[int, PublisherInfo] = publisher_registry
+        self.topic_width = max(len(t.name) for t in TopicsEnum) + 2
+
 
 
 
@@ -200,16 +215,15 @@ class EventRenderer:
         line = Text()
 
         # Status dot (verde exceto ERROR)
-        style = "red" if message.state == LifecycleState.ERROR else "green"
-        line.append("● ", style=style)
+        #style = "red" if message.state == LifecycleState.ERROR else "green"
+        #line.append("● ", style=style)
+       # line.append("◌ ", style="grey50")
 
         # Topic
-        line.append(f"{TopicsEnum.LIFECYCLE.name:<12} ", style="cyan")
-
-        # State label (fixo, alinhado)
-        #state_label = f"({message.state.name.lower()})"
-        state_label = ""
-        line.append(f"{state_label:<14} ", style="grey50")
+        #line.append(
+        #    f"{TopicsEnum.LIFECYCLE.name:<{self.topic_width}} ",
+        #    style="cyan",
+        #)
 
         # Actor
         origin = self._resolve_id(context.from_id)
@@ -218,6 +232,8 @@ class EventRenderer:
         # Optional semantic hint
         if message.state == LifecycleState.JOINED:
             line.append(" joined", style="bold cyan")
+        elif message.state == LifecycleState.SYNCED:
+            line.append(" synced", style="bold green")
         elif message.state == LifecycleState.READY:
             line.append(" ready", style="bold green")
         elif message.state == LifecycleState.ACTIVE:
@@ -226,6 +242,7 @@ class EventRenderer:
             line.append(" busy", style="bold yellow")
         elif message.state == LifecycleState.ERROR:
             line.append(" error", style="bold red")
+
 
         self.console.print(line)
 
@@ -260,7 +277,7 @@ class EventRenderer:
         # ------------------------------------------------------------------
         # Topic (fixed width)
         # ------------------------------------------------------------------
-        line.append(f"{trace.topic.name:<12} ", style="cyan")
+        line.append(f"{trace.topic.name:<{self.topic_width}} ", style="cyan")
 
         # ------------------------------------------------------------------
         # Trace ID (fixed width, same position always)
@@ -314,3 +331,59 @@ class EventRenderer:
         t = Text("UNKNOWN", style="red")
         t.append(f"#{pid}", style="grey50")
         return t
+
+    def on_validity_transition(
+        self,
+        topic,
+        message: BaseMessage,
+        context: MessageContext,
+    ):
+        if not isinstance(message, ValidityMessage):
+            return
+
+        validity_message = cast(ValidityMessage, message)
+
+        self.print_validity(
+            became_valid=validity_message.validity_transition.became_valid,
+            became_invalid=validity_message.validity_transition.became_invalid,
+            source_id=validity_message.validity_source_id,
+        )
+
+    def print_validity(
+        self,
+        became_valid,
+        became_invalid,
+        source_id: int,
+    ):
+        line = Text()
+
+        #line.append("◌ ", style="grey50")
+        #line.append("VALIDITY   ", style="cyan")
+
+        #line.append(
+        #    f"{'VALIDITY':<{self.topic_width}} ",
+        #    style="cyan",
+        #)
+
+        if became_valid:
+            line.append("+", style="green")
+            line.append(
+                ", ".join(p.__name__ for p in became_valid),
+                style="bold green"
+                #style="green",
+            )
+
+        if became_invalid:
+            if became_valid:
+                line.append("  ")
+            line.append("-", style="red")
+            line.append(
+                ", ".join(p.__name__ for p in became_invalid),
+                style="red",
+            )
+
+        # --- AUTORIA / CAUSA ---
+        line.append(" ∵ ", style="grey50")
+        line.append(str(self._resolve_id(source_id)), style="grey50")
+
+        self.console.print(line)
