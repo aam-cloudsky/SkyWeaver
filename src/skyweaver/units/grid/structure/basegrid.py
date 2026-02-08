@@ -1,0 +1,32 @@
+from abc import ABC, abstractmethod
+from typing import Any, Iterable, List, Tuple
+
+from skyweaver.units.grid.geometry.basecell import BaseCell
+
+
+class BaseGrid(ABC):
+
+    @abstractmethod
+    def iter_domain_cells(self) -> Iterable[BaseCell]:
+        """Materialize the whole grid for visualization/debugging"""
+        pass
+
+    @abstractmethod
+    def get_cell_from_cartesian(self, x: float, y: float) -> Any:
+        """Get the cell at given cartesian coordinates"""
+        pass
+
+    @abstractmethod
+    def get_domain(self) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        """Get the cell at given cartesian coordinates"""
+        pass
+
+    @abstractmethod
+    def neighbors(self, cell: BaseCell) -> List[BaseCell]:
+        """Get the neighboring cells of a given cell"""
+        pass
+
+    @abstractmethod
+    def lower_bound_steps(self, a: BaseCell, b: BaseCell) -> float:
+        """Estimate the minimum number of steps between two cells"""
+        return 1  # Default implementation; override in subclasses

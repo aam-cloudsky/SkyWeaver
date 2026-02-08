@@ -13,8 +13,12 @@ from skyweaver.core.bus.runtime.hub import TopicsEnum, MessageContext
 from skyweaver.core.logistics.lifecycle import LifecycleState, LifecycleStateMessage
 from skyweaver.core.bus.runtime.port import Port
 from skyweaver.core.logistics.parcel import Parcel
-from skyweaver.core.logistics.depot_messages import DepotGet, DepotRegistry, DepotSet, DepotUpdate
-
+from skyweaver.core.logistics.depot_messages import (
+    DepotGet,
+    DepotRegistry,
+    DepotSet,
+    DepotUpdate,
+)
 
 
 # ---------------------------------------------------------------------
@@ -27,8 +31,7 @@ class ThreadSingleton(type):
         tid = threading.get_ident()
         key = (cls, tid)
         if key not in cls._instances:
-            cls._instances[key] = super(
-                ThreadSingleton, cls).__call__(*args, **kwargs)
+            cls._instances[key] = super(ThreadSingleton, cls).__call__(*args, **kwargs)
         return cls._instances[key]
 
 
@@ -71,10 +74,7 @@ class Depot(metaclass=ThreadSingleton):
             topic=TopicsEnum.VALIDITY,
         )
 
-        self._lifecycle_port = Port(
-            owner=self,
-            topic=TopicsEnum.LIFECYCLE
-        )
+        self._lifecycle_port = Port(owner=self, topic=TopicsEnum.LIFECYCLE)
 
     # ------------------------------------------------------------------
     # Lifecycle Management
@@ -98,40 +98,41 @@ class Depot(metaclass=ThreadSingleton):
 
     def _on_end_registry_request(self, result: Any):
         depot_registry, to_id, trace_id = result
-        self._registry_port.send(message=DepotRegistry(outpost_type=depot_registry.outpost_type, parcels_by_role=depot_registry.parcels_by_role, registered=True)
-                                 , to_id=to_id, reply_to=trace_id)
+        self._registry_port.send(
+            message=DepotRegistry(
+                outpost_type=depot_registry.outpost_type,
+                parcels_by_role=depot_registry.parcels_by_role,
+                registered=True,
+            ),
+            to_id=to_id,
+            reply_to=trace_id,
+        )
 
-
-     # ------------------------------------------------------------------
-
+    # ------------------------------------------------------------------
 
     def _on_get_request(self, message: BaseMessage, context: MessageContext):
 
         if not isinstance(message, DepotGet):
             return
-        
+
         mes: DepotGet = cast(DepotGet, message)
         parcel_types = mes.types
         return (self.get_pallet(parcel_types), context.from_id, context.trace_id)
 
-
     def _on_end_get_request(self, result: Any):
         pallet, to_id, trace_id = result
-        self._get_port.send(
-            DepotUpdate(pallet=pallet),
-            to_id=to_id,
-            reply_to=trace_id
-        )
+        self._get_port.send(DepotUpdate(pallet=pallet), to_id=to_id, reply_to=trace_id)
 
     def _on_set_request(self, message: BaseMessage, context: MessageContext):
         if not isinstance(message, DepotSet):
             return
-        
+
         validity_transition: ValidityTransition = self.sentinel.verify_validity(
-            message=cast(DepotSet, message), context=context)
-        
+            message=cast(DepotSet, message), context=context
+        )
+
         # TODO: Can ONLY mutate if valid! dismiss otherwise
-        
+
         mes: DepotSet = cast(DepotSet, message)
         pallet = mes.pallet
 
@@ -141,24 +142,21 @@ class Depot(metaclass=ThreadSingleton):
             if change_status:
                 confirmed_parcels[type(parcel)] = parcel
         return confirmed_parcels, validity_transition, context.from_id
-    
+
     def _on_end_set_request(self, result: Any):
         confirmed_parcels, validity_transition, validity_source_id = result
-        if (
-            validity_transition.became_valid
-            or validity_transition.became_invalid
-        ):
+        if validity_transition.became_valid or validity_transition.became_invalid:
             self._validity_port.send(
-                ValidityMessage(validity_transition=validity_transition,
-                                validity_source_id=validity_source_id)
+                ValidityMessage(
+                    validity_transition=validity_transition,
+                    validity_source_id=validity_source_id,
+                )
             )
-        
+
         self._set_port.send(
-            DepotUpdate(pallet=confirmed_parcels),
-            to_id=ReservedIDs.BROADCAST.value
+            DepotUpdate(pallet=confirmed_parcels), to_id=ReservedIDs.BROADCAST.value
         )
-        
-            
+
     # ------------------------------------------------------------------
     # Parcel Management
     # ------------------------------------------------------------------
@@ -187,4 +185,24 @@ class Depot(metaclass=ThreadSingleton):
         self._storage[type(parcel)] = parcel
         return True
 
-    
+    def show_validity(self) -> None:
+
+        from rich.console import Console
+        from rich.table import Table
+
+        """
+        Show validity of parcels tracked by Sentinel.
+        """
+        console = Console()
+        table = Table(title="Depot Validity (Sentinel)")
+
+        table.add_column("Parcel", style="bold")
+        table.add_column("Status", justify="center")
+
+        validity = self.sentinel._parcel_validity  # {ParcelType: bool}
+
+        for parcel_type, ok in sorted(validity.items(), key=lambda x: x[0].__name__):
+            status = "[green]VALID[/green]" if ok else "[red]INVALID[/red]"
+            table.add_row(parcel_type.__name__, status)
+
+        console.print(table)

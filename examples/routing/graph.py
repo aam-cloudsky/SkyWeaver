@@ -1,11 +1,9 @@
-
-
 import time
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon as MplPolygon
 from skyweaver.core.logistics.depot import Depot
 from skyweaver.grid.structure.hexgrid import HexGrid
-from skyweaver.planning.graph_builder import GraphBuilder
+from skyweaver.planning.graph.graph_builder import GraphBuilder
 from skyweaver.planning.logistics.planning_outpost import PlanningOutpost
 
 
@@ -24,11 +22,11 @@ outpost = PlanningOutpost()
 builder = GraphBuilder(outpost=outpost)
 
 t_graph_start = time.perf_counter()
-graph = builder.build_navigation_graph()
+airspace = builder.build_airspace_graph()
 t_graph_end = time.perf_counter()
 
-num_vertices = graph.vcount()
-num_edges = graph.ecount()
+num_vertices = airspace.vcount()
+num_edges = airspace.ecount()
 
 # ---------------------------------------
 # 2. Plot hex grid (background)
@@ -58,6 +56,7 @@ t_plot_hex_end = time.perf_counter()
 # ---------------------------------------
 t_plot_edges_start = time.perf_counter()
 
+graph = airspace.graph
 vid_to_cell = graph["vertex_id_to_cell"]
 
 for e in graph.es:

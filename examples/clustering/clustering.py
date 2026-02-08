@@ -1,9 +1,8 @@
-
 import matplotlib.pyplot as plt
 import numpy as np
 from skyweaver.clustering.hdbscan_clustering import HDBSCANClustering
 from skyweaver.clustering.logistics.cluster_outpost import ClusterOutpost
-from skyweaver.core.enums.zone_type import ZoneType
+from skyweaver.units.clustering.zone_type import ZoneType
 from skyweaver.distributions.uav_mav_uav_distribution import UAVMAVUAVDistribution
 from skyweaver.core.logistics.depot import Depot
 

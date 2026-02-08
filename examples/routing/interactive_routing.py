@@ -1,18 +1,21 @@
-
 import random
 import time
-from collections import Counter
+
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon as MplPolygon
 
 from skyweaver.core.logistics.depot import Depot
-from skyweaver.grid.structure.hexgrid import HexGrid
-from skyweaver.planning.logistics.planning_outpost import PlanningOutpost
-from skyweaver.planning.graph_builder import GraphBuilder
-from skyweaver.planning.routing import Routing, compute_terminal_paths
+from skyweaver.units.analysis.metrics import average_path_length, betweenness
+from skyweaver.units.grid.structure.hexgrid import HexGrid
+from skyweaver.units.routes.graph.graph_builder import GraphBuilder
+from skyweaver.units.routes.graph.graph_pack import AirspaceGraphPack
+from skyweaver.units.routes.logistics.routes_outpost import RoutesOutpost
+from skyweaver.units.routes.planning.routing import Routing, compute_terminal_paths
 
 random.seed(42)
 depot = Depot()
+
 # ======================================================
 # 1. Build grid
 # ======================================================
@@ -20,18 +23,17 @@ grid = HexGrid(cell_size=100.0)
 all_cells = list(grid.iter_domain_cells())
 
 # ======================================================
-# 2. Pick fixed terminals
+# 2. Pick initial terminals
 # ======================================================
 available_cells = [c for c in all_cells if c.available]
 NUM_TERMINALS = 3
-fixed_terminals = random.sample(available_cells, NUM_TERMINALS)
-fixed_terminal_set = set(fixed_terminals)
+terminals = random.sample(available_cells, NUM_TERMINALS)
 
 # ======================================================
 # 3. Randomly block cells (excluding terminals)
 # ======================================================
 BLOCK_RATIO = 0.15
-candidates = [c for c in all_cells if c not in fixed_terminal_set]
+candidates = [c for c in all_cells if c not in terminals]
 blocked = random.sample(candidates, int(len(candidates) * BLOCK_RATIO))
 
 for c in blocked:
@@ -40,10 +42,10 @@ for c in blocked:
 # ======================================================
 # 4. Build base graph (G0)
 # ======================================================
-outpost = PlanningOutpost()
+outpost = RoutesOutpost()
 builder = GraphBuilder(outpost=outpost)
 
-base_graph = builder.build_navigation_graph()
+base_graph: AirspaceGraphPack = builder.build_airspace_graph()
 planner = Routing(base_graph)
 
 # ======================================================
@@ -56,41 +58,37 @@ ax.set_aspect("equal")
 ax.set_xlim(xmin, xmax)
 ax.set_ylim(ymin, ymax)
 
-ax.set_title("Dynamic paths graph (G1 → G2) with betweenness")
+ax.set_title("Click to add/remove terminals")
 
 # ======================================================
 # 6. Plot hex grid
 # ======================================================
+cell_patches = {}
 for cell in all_cells:
     poly = cell.polygon.exterior.coords
     face = "lightcoral" if not cell.available else "none"
 
-    ax.add_patch(
-        MplPolygon(
-            poly,
-            closed=True,
-            edgecolor="lightgray",
-            facecolor=face,
-            linewidth=0.8,
-        )
+    patch = MplPolygon(
+        poly,
+        closed=True,
+        edgecolor="lightgray",
+        facecolor=face,
+        linewidth=0.8,
     )
+    ax.add_patch(patch)
+    cell_patches[cell] = patch
 
 # ======================================================
-# 7. Plot fixed terminals
+# 7. Terminals state
 # ======================================================
-ax.scatter(
-    [c.cartesian_center.x for c in fixed_terminals],
-    [c.cartesian_center.y for c in fixed_terminals],
+terminals_scatter = ax.scatter(
+    [c.cartesian_center.x for c in terminals],
+    [c.cartesian_center.y for c in terminals],
     c="green",
     s=140,
     zorder=7,
-    label="Fixed terminals",
+    label="Terminals",
 )
-
-# ======================================================
-# 8. Dynamic artists
-# ======================================================
-dynamic_artists: list = []
 
 mouse_point = ax.scatter(
     [],
@@ -98,55 +96,54 @@ mouse_point = ax.scatter(
     c="black",
     s=80,
     zorder=8,
-    label="Mouse terminal",
+    label="Mouse",
 )
 
 # ======================================================
-# 9. Mouse callback
+# 8. Dynamic artists (routes + labels)
 # ======================================================
-def on_mouse_move(event):
-    if event.inaxes != ax or event.xdata is None or event.ydata is None:
-        return
+dynamic_artists: list = []
+apl_text = ax.text(
+    0.02,
+    0.98,
+    "APL: 0.0",
+    transform=ax.transAxes,
+    ha="left",
+    va="top",
+    fontsize=10,
+    bbox=dict(
+        boxstyle="round,pad=0.25",
+        facecolor="white",
+        edgecolor="lightgray",
+        alpha=0.9,
+    ),
+)
 
-    cell = grid.get_cell_from_cartesian(event.xdata, event.ydata)
 
-    if (
-        cell is None
-        or not cell.available
-        or cell in fixed_terminal_set
-    ):
-        return
-
-    # Update mouse marker
-    mouse_point.set_offsets([
-        [cell.cartesian_center.x, cell.cartesian_center.y]
-    ])
-
-    # Clear previous drawings
+def clear_dynamic_artists():
     for artist in dynamic_artists:
         artist.remove()
     dynamic_artists.clear()
 
-    terminals = fixed_terminals + [cell]
 
-    # --------------------------------------------------
-    # Compute terminal paths (G0 → Paths)
-    # --------------------------------------------------
-    t0 = time.perf_counter()
-    paths = compute_terminal_paths(planner, terminals)
+def recompute_and_draw():
+    clear_dynamic_artists()
 
-    if not paths:
-        fig.canvas.draw_idle()
+    if len(terminals) < 2:
+        apl_text.set_text("APL: 0.0")
+        fig.canvas.draw()
         return
 
-    # --------------------------------------------------
-    # Build paths graph (Paths → G1)
-    # --------------------------------------------------
-    g1 = builder.build_path_induced_graph(paths)
+    paths = compute_terminal_paths(planner, terminals)
+    if not paths:
+        apl_text.set_text("APL: 0.0")
+        fig.canvas.draw()
+        return
 
-    # --------------------------------------------------
-    # Plot G1 edges
-    # --------------------------------------------------
+    routes_graph = builder.build_routes_graph(paths)
+    g1 = routes_graph.graph
+
+    # Draw edges
     for e in g1.es:
         v1, v2 = e.tuple
         c1 = g1.vs[v1]["cell"]
@@ -155,7 +152,7 @@ def on_mouse_move(event):
         xs = [c1.cartesian_center.x, c2.cartesian_center.x]
         ys = [c1.cartesian_center.y, c2.cartesian_center.y]
 
-        line, = ax.plot(
+        (line,) = ax.plot(
             xs,
             ys,
             color="blue",
@@ -165,36 +162,14 @@ def on_mouse_move(event):
         )
         dynamic_artists.append(line)
 
+    terminals_graph = builder.build_terminals_graph(paths)
+    apl_result = average_path_length(base_graph, routes_graph, terminals_graph)
+    apl_text.set_text(f"APL: {apl_result.value:.3f}")
 
-    # --------------------------------------------------
-    # Betweenness
-    #  - Flow-based path centrality (OD-restricted)
-    # --------------------------------------------------
-
-    centrality = Counter()
-
-    for path in paths:
-        if len(path) <= 2:
-            continue  # caminho direto, sem intermediários
-
-        for cell_mid in path[1:-1]:  # exclui terminais
-            centrality[cell_mid] += 1
-
-
-    # --------------------------------------------------
-    # Print Betweenness
-    # --------------------------------------------------
-    for v in g1.vs:
-
-        if v["is_terminal"]:
-            continue
-
-        cell_v = v["cell"]
-        value = centrality.get(cell_v, 0)
-
+    betw_result = betweenness(base_graph, routes_graph, terminals_graph)
+    for cell_v, value in betw_result.values.items():
         if value == 0:
             continue
-
         txt = ax.text(
             cell_v.cartesian_center.x,
             cell_v.cartesian_center.y,
@@ -209,18 +184,93 @@ def on_mouse_move(event):
                 facecolor="white",
                 edgecolor="none",
                 alpha=0.7,
-            )
+            ),
         )
         dynamic_artists.append(txt)
 
-    dt_ms = (time.perf_counter() - t0) * 1000.0
-    print(f"[UPDATE] {dt_ms:.2f} ms")
-
     fig.canvas.draw_idle()
 
+
 # ======================================================
-# 10. Connect mouse
+# 9. Mouse move (hover)
+# ======================================================
+def on_mouse_move(event):
+    if event.inaxes != ax or event.xdata is None or event.ydata is None:
+        return
+
+    cell = grid.get_cell_from_cartesian(event.xdata, event.ydata)
+    if cell is None or not cell.available:
+        return
+
+    mouse_point.set_offsets([[cell.cartesian_center.x, cell.cartesian_center.y]])
+    fig.canvas.draw_idle()
+
+
+# ======================================================
+# 10. Mouse click (toggle terminal)
+# ======================================================
+def on_mouse_click(event):
+    if event.inaxes != ax or event.button != 1:
+        return
+    if event.xdata is None or event.ydata is None:
+        return
+
+    cell = grid.get_cell_from_cartesian(event.xdata, event.ydata)
+    if cell is None or not cell.available:
+        return
+
+    if cell in terminals:
+        terminals.remove(cell)
+    else:
+        terminals.append(cell)
+
+    pts = np.array(
+        [[c.cartesian_center.x, c.cartesian_center.y] for c in terminals],
+        dtype=float,
+    )
+    if pts.size == 0:
+        pts = np.empty((0, 2), dtype=float)
+    terminals_scatter.set_offsets(pts)
+
+    recompute_and_draw()
+
+
+# ======================================================
+# 10b. Right click (toggle restriction)
+# ======================================================
+def on_right_click(event):
+    if event.inaxes != ax or event.button != 3:
+        return
+    if event.xdata is None or event.ydata is None:
+        return
+
+    cell = grid.get_cell_from_cartesian(event.xdata, event.ydata)
+    if cell is None:
+        return
+    if cell in terminals:
+        return
+
+    if cell.available:
+        cell.set_unavailable()
+        cell_patches[cell].set_facecolor("lightcoral")
+    else:
+        cell.set_available()
+        cell_patches[cell].set_facecolor("none")
+
+    # Rebuild airspace graph and planner after restriction change
+    global base_graph, planner
+    base_graph = builder.build_airspace_graph()
+    planner = Routing(base_graph)
+
+    recompute_and_draw()
+
+
+# ======================================================
+# 11. Connect callbacks
 # ======================================================
 fig.canvas.mpl_connect("motion_notify_event", on_mouse_move)
+fig.canvas.mpl_connect("button_press_event", on_mouse_click)
+fig.canvas.mpl_connect("button_press_event", on_right_click)
 ax.legend()
+recompute_and_draw()
 plt.show()

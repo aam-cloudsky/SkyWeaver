@@ -6,7 +6,7 @@ from matplotlib.patches import Polygon as MplPolygon
 from skyweaver.core.logistics.depot import Depot
 from skyweaver.grid.structure.hexgrid import HexGrid
 
-from skyweaver.planning.graph_builder import GraphBuilder
+from skyweaver.planning.graph.graph_builder import GraphBuilder
 from skyweaver.planning.logistics.planning_outpost import PlanningOutpost
 from skyweaver.planning.routing import Routing, compute_terminal_paths
 
@@ -50,8 +50,8 @@ viz_outpost = VizOutpost()
 
 builder = GraphBuilder(outpost=PlanningOutpost())
 
-base_graph = builder.build_navigation_graph()
-planner = Routing(base_graph)
+base_graph = builder.build_airspace_graph()
+planner = Routing(base_graph.graph)
 
 
 # ======================================================
@@ -122,7 +122,7 @@ def on_state_sync(pallet: dict):
         c1 = g2.vs[v1]["cell"]
         c2 = g2.vs[v2]["cell"]
 
-        line, = ax.plot(
+        (line,) = ax.plot(
             [c1.cartesian_center.x, c2.cartesian_center.x],
             [c1.cartesian_center.y, c2.cartesian_center.y],
             color="blue",
@@ -147,16 +147,10 @@ def on_mouse_move(event):
 
     cell = grid.get_cell_from_cartesian(event.xdata, event.ydata)
 
-    if (
-        cell is None
-        or not cell.available
-        or cell in fixed_terminal_set
-    ):
+    if cell is None or not cell.available or cell in fixed_terminal_set:
         return
 
-    mouse_point.set_offsets([
-        [cell.cartesian_center.x, cell.cartesian_center.y]
-    ])
+    mouse_point.set_offsets([[cell.cartesian_center.x, cell.cartesian_center.y]])
 
     terminals = fixed_terminals + [cell]
 
@@ -166,9 +160,8 @@ def on_mouse_move(event):
         return
 
     # Build terminal graph
-    g2 = builder.build_terminal_graph(
-        [(p, 0.0) for p in paths]
-    )
+    g2_pack = builder.build_terminals_graph([(p, 0.0) for p in paths])
+    g2 = g2_pack.graph
 
     # Publish snapshot
     with viz_outpost:
