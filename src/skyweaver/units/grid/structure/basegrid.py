@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Iterable, List, Tuple
 
+from shapely import Point
+
 from skyweaver.units.grid.geometry.basecell import BaseCell
 
 
@@ -30,3 +32,7 @@ class BaseGrid(ABC):
     def lower_bound_steps(self, a: BaseCell, b: BaseCell) -> float:
         """Estimate the minimum number of steps between two cells"""
         return 1  # Default implementation; override in subclasses
+
+    def get_cell_from_cartesians(self, points: Iterable[Point]) -> List[BaseCell]:
+        """Get the cells at given cartesian coordinates"""
+        return []

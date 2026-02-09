@@ -11,7 +11,7 @@ from skyweaver.units.grid.structure.hexgrid import HexGrid
 from skyweaver.units.routes.graph.graph_builder import GraphBuilder
 from skyweaver.units.routes.graph.graph_pack import AirspaceGraphPack
 from skyweaver.units.routes.logistics.routes_outpost import RoutesOutpost
-from skyweaver.units.routes.planning.routing import Routing, compute_terminal_paths
+from skyweaver.units.routes.routing import Routing, compute_terminal_paths
 
 random.seed(42)
 depot = Depot()
@@ -33,11 +33,14 @@ terminals = random.sample(available_cells, NUM_TERMINALS)
 # 3. Randomly block cells (excluding terminals)
 # ======================================================
 BLOCK_RATIO = 0.15
+NUM_HELIPORTS = 5
 candidates = [c for c in all_cells if c not in terminals]
 blocked = random.sample(candidates, int(len(candidates) * BLOCK_RATIO))
 
 for c in blocked:
     c.set_unavailable()
+
+heliports = random.sample(blocked, min(NUM_HELIPORTS, len(blocked)))
 
 # ======================================================
 # 4. Build base graph (G0)
@@ -88,6 +91,15 @@ terminals_scatter = ax.scatter(
     s=140,
     zorder=7,
     label="Terminals",
+)
+
+heliports_scatter = ax.scatter(
+    [c.cartesian_center.x for c in heliports],
+    [c.cartesian_center.y for c in heliports],
+    c="red",
+    s=110,
+    zorder=7,
+    label="Heliports (restricted)",
 )
 
 mouse_point = ax.scatter(
@@ -163,11 +175,11 @@ def recompute_and_draw():
         dynamic_artists.append(line)
 
     terminals_graph = builder.build_terminals_graph(paths)
-    apl_result = average_path_length(base_graph, routes_graph, terminals_graph)
-    apl_text.set_text(f"APL: {apl_result.value:.3f}")
+    apl_result = average_path_length(routes_graph)
+    apl_text.set_text(f"APL: {apl_result:.3f}")
 
-    betw_result = betweenness(base_graph, routes_graph, terminals_graph)
-    for cell_v, value in betw_result.values.items():
+    betw_result = betweenness(routes_graph)
+    for cell_v, value in betw_result.items():
         if value == 0:
             continue
         txt = ax.text(

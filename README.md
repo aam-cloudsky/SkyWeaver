@@ -161,3 +161,10 @@ $ To Use QGIS's python: & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.ex
 $ pip: & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m pip
 $ & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m poetry install
 $ & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m skyweaver.distributions.uav_mav_uav_distribution
+
+
+## TODOs: 
+
+1. Refactor the GraphBuilder to avoid code duplication and improve maintainability. The current implementation has several similar patterns that can be abstracted into helper methods or a more generic graph construction approach.
+2. The class Routing seems a bit odd, once it Routes Unit is already called route. Maybe it should be renamed to something like RoutePlanner or RouteCalculator, to avoid confusion with the unit name and to better reflect its purpose.
+3. In Grid, cluster should have. a role like optional consumed, where it is verified if exists and then consumed, instead of being mandatory. This would allow for more flexible grid configurations and better error handling when clusters are not present. THerefore, we should add Sentinels functionality to understand the diference between CONSUMED and OPTIONAL CONSUMED.

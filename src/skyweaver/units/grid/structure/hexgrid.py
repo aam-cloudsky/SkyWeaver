@@ -135,6 +135,15 @@ class HexGrid(BaseGrid):
 
         return self.get_cell_from_coord(coord)
 
+    def get_cell_from_cartesians(self, points: Iterable[Point]) -> List[HexCell]:
+        cells: list[HexCell] = []
+        for point in points:
+            cell = self.get_cell_from_cartesian(point.x, point.y)
+            if cell is not None:
+                cells.append(cell)
+
+        return cells
+
     def iter_domain_cells(self) -> Iterable[HexCell]:
         """
         Lazily iterate over all hex cells inside the domain.

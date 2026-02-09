@@ -1,41 +1,38 @@
 from __future__ import annotations
 from collections import Counter
+from typing import Dict
 
+from skyweaver.units.grid.geometry.basecell import BaseCell
 from skyweaver.units.routes.graph.graph_pack import (
-    AirspaceGraphPack,
     RoutesGraphPack,
-    TerminalsGraphPack,
 )
-from .base import APLResult, BetweennessResult
-from .registry import register
 
 
-@register("apl")
 def average_path_length(
-    g0: AirspaceGraphPack,
     g1: RoutesGraphPack,
-    g2: TerminalsGraphPack,
-) -> APLResult:
-    if g2.vcount() == 0:
-        return APLResult(name="apl", value=0.0)
-
-    apl = g2.graph.average_path_length(weights="weight", unconn=True)
-    value = float(apl) if apl is not None else 0.0
-    return APLResult(name="apl", value=value)
-
-
-@register("betweenness")
-def betweenness(
-    g0: AirspaceGraphPack,
-    g1: RoutesGraphPack,
-    g2: TerminalsGraphPack,
-) -> BetweennessResult:
+) -> float:
     if g1.vcount() == 0:
-        return BetweennessResult(name="betweenness", values={})
+        return 0.0
+
+    paths = g1.paths
+    lengths = [len(path) - 1 for path in paths]
+    print("path lengths:", lengths)
+    print("APL:", sum(lengths) / len(lengths))
+
+    if not lengths:
+        return 0.0
+    return sum(lengths) / len(lengths)
+
+
+def betweenness(
+    g1: RoutesGraphPack,
+) -> Dict[BaseCell, int]:
+    if g1.vcount() == 0:
+        return {}
 
     paths = g1.paths
     if not paths:
-        return BetweennessResult(name="betweenness", values={})
+        return {}
 
     centrality = Counter()
     for path in paths:
@@ -45,6 +42,6 @@ def betweenness(
             centrality[cell_mid] += 1
 
     if not centrality:
-        return BetweennessResult(name="betweenness", values={})
+        return {}
 
-    return BetweennessResult(name="betweenness", values=dict(centrality))
+    return dict(centrality)

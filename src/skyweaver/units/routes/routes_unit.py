@@ -6,19 +6,18 @@ from skyweaver.units.grid.geometry.basecell import BaseCell
 
 from skyweaver.units.routes.graph.graph_builder import GraphBuilder
 from skyweaver.units.routes.logistics.routes_outpost import RoutesOutpost
-from skyweaver.units.routes.planning.routing import Routing, compute_terminal_paths
+from skyweaver.units.routes.routing import Routing, compute_terminal_paths
 
 
+# TODO: The class Routing seems a bit odd, once it
+# Routes Unit is already called route.
+# Maybe it should be renamed to something like RoutePlanner or RouteCalculator,
+# to avoid confusion with the unit name and to better reflect its purpose.
 class RoutesUnit(OperationalUnit[RoutesOutpost]):
     def __init__(self, outpost: Optional[RoutesOutpost] = None):
 
         if outpost is None:
             outpost = RoutesOutpost()
-            print(
-                "[RoutesUnit] WARNING: No outpost provided, initializing with empty RoutesOutpost. This may lead to issues if the unit expects pre-populated data."
-            )
-
-            print(outpost)
         super().__init__(outpost=outpost)
 
         print(
@@ -47,8 +46,11 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
         self._terminals.clear()
 
     def _get_terminals(self) -> List[BaseCell]:
-        # pode combinar os terminais locais com os vindos dos vertiports
-        terminals = self._get_terminals()
+        # combine local terminals with terminals from vertiports
+        if hasattr(self, "_terminals") and self._terminals:
+            terminals = list(self._terminals)
+        else:
+            terminals = []
 
         vertiports = self._outpost.vertiports_parcel.vertiports
         grid = self._outpost.grid_parcel.grid
@@ -61,11 +63,9 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
 
     def run(self) -> None:
 
-        # terminals = self._get_terminals()
+        terminals = self._get_terminals()
 
-        paths: List[List[BaseCell]] = compute_terminal_paths(
-            self.planner, self._terminals
-        )
+        paths: List[List[BaseCell]] = compute_terminal_paths(self.planner, terminals)
 
         routes_graph = self.builder.build_routes_graph(paths)
         terminals_graph = self.builder.build_terminals_graph(paths)
@@ -73,3 +73,19 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
         with self._outpost:
             self._outpost.routes_parcel.routes_graph = routes_graph
             self._outpost.routes_parcel.terminals_graph = terminals_graph
+
+    def is_cell_on_route(self, cell: BaseCell) -> bool:
+        routes_graph = self._outpost.routes_parcel.routes_graph
+        if routes_graph is None:
+            return False
+        paths = routes_graph.paths
+        for path in paths:
+            if cell in path:
+                return True
+        return False
+
+    def rebuild_airspace_graph(self) -> None:
+        self.airspace_graph = self.builder.build_airspace_graph()
+        self.planner = Routing(self.airspace_graph)
+        with self._outpost:
+            self._outpost.routes_parcel.airspace_graph = self.airspace_graph

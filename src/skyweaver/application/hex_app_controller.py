@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
-
-from skyweaver.grid.geometry.hexcoord import HexCoord
-
+from examples.view.hex_matplotlib_ihm import HexMouseEvent
 from skyweaver.application.intent import (
     HexIntent,
     ToggleRestriction,
@@ -10,7 +8,7 @@ from skyweaver.application.intent import (
     EndDragTerminal,
 )
 from skyweaver.application.dispatcher import IntentDispatcher
-from skyweaver.visualization.mouse_event import HexMouseEvent
+from skyweaver.units.grid.geometry.hexcoord import HexCoord
 
 
 class HexApplicationController:
@@ -40,9 +38,7 @@ class HexApplicationController:
         if event.button == "left":
 
             if event.event_type == "press":
-                self.dispatcher.dispatch(
-                    ToggleRestriction(coord=event.coord)
-                )
+                self.dispatcher.dispatch(ToggleRestriction(coord=event.coord))
 
         # -------------------------------
         # RIGHT CLICK → drag terminal
@@ -51,9 +47,7 @@ class HexApplicationController:
 
             if event.event_type == "press":
                 self._drag_origin = event.coord
-                self.dispatcher.dispatch(
-                    BeginDragTerminal(coord=event.coord)
-                )
+                self.dispatcher.dispatch(BeginDragTerminal(coord=event.coord))
 
             elif event.event_type == "release" and self._drag_origin:
                 self.dispatcher.dispatch(

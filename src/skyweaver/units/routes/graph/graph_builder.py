@@ -13,6 +13,9 @@ from skyweaver.units.routes.graph.graph_pack import (
 from skyweaver.units.routes.logistics.routes_outpost import RoutesOutpost
 
 
+# TODO: Refactor the GraphBuilder to avoid code duplication and improve maintainability.
+# The current implementation has several similar patterns that can be abstracted into helper
+# methods or a more generic graph construction approach.
 class GraphBuilder:
     """
     Builds graph representations from the current grid and path sets.
@@ -79,6 +82,7 @@ class GraphBuilder:
                 path=path_cells,
             )
 
+        # TODO: Redundância no armazenamento de mapas, pode ser otimizado
         g2["cell_to_vertex_id"] = cell_to_vid
         g2["vertex_id_to_cell"] = vid_to_cell
 
@@ -93,6 +97,7 @@ class GraphBuilder:
             return 0.0
         total_cost = 0.0
         for a, b in zip(path[:-1], path[1:]):
+            # Rough cost: average of cell costs along the path
             edge_cost = 0.5 * (a.cost + b.cost)
             total_cost += edge_cost
         return total_cost
@@ -128,6 +133,8 @@ class GraphBuilder:
         graph.add_edges(edges)
         graph.es["weight"] = weights
 
+        # TODO: Esses cálculos estão bem parecidos com o
+        # build terminal paths, pode ser otimizado para evitar redundância
         graph["cell_to_vertex_id"] = cell_to_vid
         graph["vertex_id_to_cell"] = vid_to_cell
 
@@ -175,6 +182,9 @@ class GraphBuilder:
 
         vid = graph.vcount()
         graph.add_vertex()
+
+        # TODO: Tá parecendo muito similar com os outros
+        # códigos. Realmente preciso refatorar.
         cell_to_vid[cell] = vid
         vid_to_cell[vid] = cell
         return vid
