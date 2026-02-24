@@ -2,7 +2,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Dict
 
-from skyweaver.units.grid.geometry.basecell import BaseCell
+from skyweaver.units.hexgrid.structure.hexcell import HexCell
 from skyweaver.units.routes.graph.graph_pack import (
     RoutesGraphPack,
 )
@@ -26,7 +26,7 @@ def average_path_length(
 
 def betweenness(
     g1: RoutesGraphPack,
-) -> Dict[BaseCell, int]:
+) -> Dict[HexCell, int]:
     if g1.vcount() == 0:
         return {}
 

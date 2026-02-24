@@ -1,0 +1,12 @@
+sources:
+  heliports_path: "./data/heliport.geojson"
+  vertiports_path: ""
+  
+domain:
+  padding: 1000.0
+  margin: 2000.0
+  # projection: "AEQD"  # Azimuthal Equidistant Projection
+
+hexgrid:
+  cell_size: 1000.0
+  orientation: "POINTY" #no other options for now, but could be "flat" in the future

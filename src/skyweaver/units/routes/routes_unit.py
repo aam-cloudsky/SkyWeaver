@@ -1,9 +1,8 @@
 from typing import List, Optional
 
-from shapely import Point
 from skyweaver.core.operations.operational_unit import OperationalUnit
-from skyweaver.units.grid.geometry.basecell import BaseCell
 
+from skyweaver.units.hexgrid.structure.hexcell import HexCell
 from skyweaver.units.routes.graph.graph_builder import GraphBuilder
 from skyweaver.units.routes.logistics.routes_outpost import RoutesOutpost
 from skyweaver.units.routes.routing import Routing, compute_terminal_paths
@@ -32,20 +31,20 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
         with self._outpost:
             self._outpost.routes_parcel.airspace_graph = self.airspace_graph
 
-        self._terminals: List[BaseCell] = self._get_terminals()
+        self._terminals: List[HexCell] = self._get_terminals()
 
-    def add_terminal(self, cell: BaseCell) -> None:
+    def add_terminal(self, cell: HexCell) -> None:
         if cell not in self._terminals:
             self._terminals.append(cell)
 
-    def remove_terminal(self, cell: BaseCell) -> None:
+    def remove_terminal(self, cell: HexCell) -> None:
         if cell in self._terminals:
             self._terminals.remove(cell)
 
     def clear_terminals(self) -> None:
         self._terminals.clear()
 
-    def _get_terminals(self) -> List[BaseCell]:
+    def _get_terminals(self) -> List[HexCell]:
         # combine local terminals with terminals from vertiports
         if hasattr(self, "_terminals") and self._terminals:
             terminals = list(self._terminals)
@@ -65,7 +64,7 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
 
         terminals = self._get_terminals()
 
-        paths: List[List[BaseCell]] = compute_terminal_paths(self.planner, terminals)
+        paths: List[List[HexCell]] = compute_terminal_paths(self.planner, terminals)
 
         routes_graph = self.builder.build_routes_graph(paths)
         terminals_graph = self.builder.build_terminals_graph(paths)
@@ -74,7 +73,7 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
             self._outpost.routes_parcel.routes_graph = routes_graph
             self._outpost.routes_parcel.terminals_graph = terminals_graph
 
-    def is_cell_on_route(self, cell: BaseCell) -> bool:
+    def is_cell_on_route(self, cell: HexCell) -> bool:
         routes_graph = self._outpost.routes_parcel.routes_graph
         if routes_graph is None:
             return False

@@ -6,7 +6,8 @@ import igraph as ig
 from skyweaver.core.logistics.depot import Depot
 from itertools import combinations
 
-from skyweaver.units.grid.geometry.basecell import BaseCell
+
+from skyweaver.units.hexgrid.structure.hexcell import HexCell
 from skyweaver.units.routes.graph.graph_pack import AirspaceGraphPack
 
 
@@ -14,15 +15,15 @@ class Routing:
 
     def __init__(self, airspace_graph: AirspaceGraphPack):
         self.graph = airspace_graph.graph
-        self.cell_to_vid: Dict[BaseCell, int] = airspace_graph._cell_to_vid
-        self.vid_to_cell: Dict[int, BaseCell] = airspace_graph._vid_to_cell
+        self.cell_to_vid: Dict[HexCell, int] = airspace_graph._cell_to_vid
+        self.vid_to_cell: Dict[int, HexCell] = airspace_graph._vid_to_cell
 
     def shortest_path(
         self,
-        a: BaseCell,
-        b: BaseCell,
+        a: HexCell,
+        b: HexCell,
         return_path: bool = True,
-    ) -> tuple[float, list[BaseCell] | None]:
+    ) -> tuple[float, list[HexCell] | None]:
         """
         Shortest path query on base graph (G0).
 
@@ -60,15 +61,15 @@ class Routing:
 
 def compute_terminal_paths(
     planner: Routing,
-    terminals: Iterable[BaseCell],
-) -> List[List[BaseCell]]:
+    terminals: Iterable[HexCell],
+) -> List[List[HexCell]]:
     """
     Compute shortest paths between all terminal pairs (G0 → paths).
 
     Returns:
-        List of paths (each path is a list of BaseCell)
+        List of paths (each path is a list of HexCell)
     """
-    paths: List[List[BaseCell]] = []
+    paths: List[List[HexCell]] = []
 
     for a, b in combinations(terminals, 2):
         if a not in planner.cell_to_vid or b not in planner.cell_to_vid:

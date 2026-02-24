@@ -4,14 +4,12 @@
 from dataclasses import dataclass, field
 
 from skyweaver.core.logistics.parcel import Parcel
-
-from skyweaver.units.grid.structure.basegrid import BaseGrid
-from skyweaver.units.grid.structure.nullgrid import NullGrid
+from skyweaver.units.hexgrid.structure.hexgrid import HexGrid
 
 
 @dataclass
 class GridParcel(Parcel):
     # GRID MUST BE NULLGRID. Cannot be BaseGrid due to abstract methods.
     # cannot be HexGrid due to circular imports.
-    grid: BaseGrid = field(default_factory=NullGrid)
+    grid: HexGrid = field(default_factory=HexGrid)
     cell_size: float = field(default=100.0)

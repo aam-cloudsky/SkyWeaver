@@ -1,5 +1,15 @@
 from collections import defaultdict
-from typing import  Callable, ClassVar, Dict, Type, Any, Optional, cast, get_origin, get_args
+from typing import (
+    Callable,
+    ClassVar,
+    Dict,
+    Type,
+    Any,
+    Optional,
+    cast,
+    get_origin,
+    get_args,
+)
 from dataclasses import dataclass, fields
 from dataclasses import dataclass, field, fields
 from typing import Dict, Optional, Set, Type
@@ -7,11 +17,15 @@ from typing import Dict, Optional, Set, Type
 from skyweaver.core.bus.protocol.base_message import BaseMessage
 from skyweaver.core.bus.protocol.message_context import MessageContext
 from skyweaver.core.bus.enums.topics_enum import TopicsEnum
-from skyweaver.core.logistics.depot_messages import DepotGet, DepotRegistry, DepotSet, DepotUpdate
+from skyweaver.core.logistics.depot_messages import (
+    DepotGet,
+    DepotRegistry,
+    DepotSet,
+    DepotUpdate,
+)
 from skyweaver.core.logistics.lifecycle import LifecycleState, LifecycleStateMessage
 from skyweaver.core.bus.runtime.port import Port
 from skyweaver.core.logistics.parcel import Parcel, ParcelRole
-
 
 
 from enum import Enum, auto
@@ -45,7 +59,7 @@ class OutpostParcelSchema:
             return get_args(annotation)[0]
 
         return annotation
-    
+
     def _build_pallet(self):
         pallet: Dict[Type[Parcel], Parcel] = {}
         for parcel_type in self.parcel_definitions().keys():
@@ -53,11 +67,9 @@ class OutpostParcelSchema:
             if parcel is not None:
                 pallet[parcel_type] = parcel
         return pallet
-    
+
     @classmethod
-    def parcels_by_role(
-        cls
-    ) -> Dict[ParcelRole, Set[Type[Parcel]]]:
+    def parcels_by_role(cls) -> Dict[ParcelRole, Set[Type[Parcel]]]:
         """
         Canonical projection of parcel roles declared in the Outpost schema.
 
@@ -90,6 +102,7 @@ class OutpostParcelSchema:
 
         return annotation
 
+
 class OutpostOperationalStates(Enum):
     IDLE = auto()
     BEGINNING_OPERATION = auto()
@@ -102,6 +115,7 @@ class StateFlags:
     _permit_external_parcels_mutation: bool
     _permit_internal_parcel_mutation: bool
     _permit_internal_private_mutation: bool
+    _permit_dynamic_attribute_creation: bool
 
 
 @dataclass(eq=False)
@@ -119,62 +133,71 @@ class Outpost(OutpostParcelSchema):
     # Local state is not rolled back on failed delivery.
 
     """
+
     "Máquina Reativa Orientada a Eventos QUE ESCOLHE O ESTADO MAIS ADEQUADO A CADA EVENTO"
-    
 
     _STATE_FLAG_MAP: ClassVar[Dict[OutpostOperationalStates, StateFlags]] = {
         OutpostOperationalStates.IDLE: StateFlags(
             _permit_external_parcels_mutation=False,
             _permit_internal_parcel_mutation=False,
             _permit_internal_private_mutation=False,
+            _permit_dynamic_attribute_creation=False,
         ),
         OutpostOperationalStates.TRANSACTION: StateFlags(
             _permit_external_parcels_mutation=True,
             _permit_internal_parcel_mutation=True,
             _permit_internal_private_mutation=True,
+            _permit_dynamic_attribute_creation=False,
         ),
         OutpostOperationalStates.BEGINNING_OPERATION: StateFlags(
             _permit_external_parcels_mutation=False,
             _permit_internal_parcel_mutation=True,
             _permit_internal_private_mutation=True,
+            _permit_dynamic_attribute_creation=False,
         ),
         OutpostOperationalStates.ON_RECEIVING_FROM_DEPOT: StateFlags(
             _permit_external_parcels_mutation=False,
             _permit_internal_parcel_mutation=True,
             _permit_internal_private_mutation=True,
+            _permit_dynamic_attribute_creation=False,
         ),
     }
 
-
-    #=======================================================
+    # =======================================================
     # Operational State Management
     # =======================================================
 
     def __post_init__(self):
-        
+        self._setup_declared_fields()
+
         self._init_flags()
         self._transition_state(OutpostOperationalStates.BEGINNING_OPERATION)
         self._setup_port_hub()
-        
+
         self._request_pallet()
 
+    def _setup_declared_fields(self):
+        object.__setattr__(self, "_declared_fields", {f.name for f in fields(self)})
 
     def _init_flags(self):
-        self._flags: StateFlags = StateFlags(_permit_external_parcels_mutation=False,
-                                             _permit_internal_parcel_mutation=False,
-                                             _permit_internal_private_mutation=True)
+        self._flags: StateFlags = StateFlags(
+            _permit_external_parcels_mutation=False,
+            _permit_internal_parcel_mutation=False,
+            _permit_internal_private_mutation=True,
+            _permit_dynamic_attribute_creation=False,
+        )
 
     def _notify(self, state: LifecycleState):
         if getattr(self, "_last_lifecycle_state", None) != state:
-            
+
             self._lifecycle_port.send(LifecycleStateMessage(state=state))
             self._last_lifecycle_state = state
 
-    def set_on_pallet_sync(self, callback: Callable[[Dict[Type[Parcel], Parcel]], None]):
-        #self._on_pallet_sync: Callable[[Dict[Type[Parcel], Parcel]], None] = callback
+    def set_on_pallet_sync(
+        self, callback: Callable[[Dict[Type[Parcel], Parcel]], None]
+    ):
+        # self._on_pallet_sync: Callable[[Dict[Type[Parcel], Parcel]], None] = callback
         object.__setattr__(self, "_on_pallet_sync", callback)
-
-
 
     # =======================================================
     # Port Operations
@@ -203,20 +226,14 @@ class Outpost(OutpostParcelSchema):
             on_end_arrive=self._on_get_pallet_end,
         )
 
-        self._lifecycle_port = Port(
-            owner=self,
-            topic=TopicsEnum.LIFECYCLE
-        )
+        self._lifecycle_port = Port(owner=self, topic=TopicsEnum.LIFECYCLE)
 
         self._register_with_depot()
-
-        
 
     def _register_with_depot(self):
         self._registry_port.send(
             DepotRegistry(
-                outpost_type=type(self),
-                parcels_by_role=self.parcels_by_role()
+                outpost_type=type(self), parcels_by_role=self.parcels_by_role()
             )
         )
 
@@ -238,9 +255,9 @@ class Outpost(OutpostParcelSchema):
         self._notify(LifecycleState.SYNCED)
         self._transition_state(OutpostOperationalStates.IDLE)
 
-    #=======================================================
+    # =======================================================
     # On Pallet Management
-    #=======================================================
+    # =======================================================
 
     def _request_pallet(self):
         pallet_types = list(self.parcel_definitions().keys())
@@ -251,24 +268,21 @@ class Outpost(OutpostParcelSchema):
         mes = cast(DepotUpdate, message)
         self._transition_state(OutpostOperationalStates.ON_RECEIVING_FROM_DEPOT)
         self._set_parcels(mes.pallet)
-        
+
         _on_pallet_sync = getattr(self, "_on_pallet_sync", lambda pallet: None)
         _on_pallet_sync(self._build_pallet())
 
-        
     def _on_pallet_end(self, _):
         self._transition_state(OutpostOperationalStates.IDLE)
-
-    
 
     def _commit_pallet(self):
         pallet = self._build_pallet()
         if pallet:
             self._set_port.send(DepotSet(pallet=pallet))
 
-    #=======================================================
+    # =======================================================
     # Transaction Context
-    #=======================================================    
+    # =======================================================
 
     def __enter__(self):
         self._transition_state(OutpostOperationalStates.TRANSACTION)
@@ -277,27 +291,23 @@ class Outpost(OutpostParcelSchema):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._commit_pallet()
         self._transition_state(OutpostOperationalStates.IDLE)
-        
 
     def _transition_state(self, new_state: OutpostOperationalStates):
         """
         All state transitions must update flags accordingly.
         1. IDLE: no parcel changes allowed
         """
-        #self._state = new_state
-        #self._flags = self._STATE_FLAG_MAP[new_state]
+        # self._state = new_state
+        # self._flags = self._STATE_FLAG_MAP[new_state]
 
-        
         object.__setattr__(self, "_flags", self._STATE_FLAG_MAP[new_state])
         object.__setattr__(self, "_state", new_state)
-        
 
-
-    #======================================================
+    # ======================================================
     # Flagged Functions
     # set parcels must only works within permitted contexts
     # it is blocked by __setattr__
-    #=======================================================
+    # =======================================================
 
     def _set_parcels(self, pallet: Dict[Type[Parcel], Parcel]):
 
@@ -305,30 +315,68 @@ class Outpost(OutpostParcelSchema):
             raise RuntimeError(
                 "_set_parcels called in a state that does not allow parcel mutation"
             )
-    
+
         definitions = self.parcel_definitions()
         for parcel_type, parcel in pallet.items():
             if parcel_type not in definitions:
-                continue   
+                continue
             field_name = definitions[parcel_type]["field"]
             object.__setattr__(self, field_name, parcel)
 
     def __setattr__(self, name, value):
-        
+        """
+        CORE mutation gate.
+
+        Explicit rules:
+        1) During init (before policy exists), allow assignment.
+        2) If name is not declared and dynamic creation is forbidden -> error.
+        3) Private attributes ('_x') obey internal_private_write policy.
+        4) Declared parcel fields obey external_parcel_write policy.
+        5) Declared non-parcel fields are also blocked externally by default
+           (unless you decide otherwise explicitly).
+        """
+
+        # -------------------------------------------------
+        # Allow normal attribute setting during init
+        # -------------------------------------------------
+
         # Durante __init__ / __post_init__, _flags ainda não existe
         if not hasattr(self, "_flags"):
             object.__setattr__(self, name, value)
             return
 
+        # -------------------------------------------------
+        # Block dynamic attribute creation
+        # -------------------------------------------------
+
+        if (
+            not name.startswith("_")
+            and hasattr(self, "_declared_fields")
+            and name not in self.__getattribute__("_declared_fields")
+            and not self._flags._permit_dynamic_attribute_creation
+        ):
+            raise AttributeError(
+                f"'{type(self).__name__}' has no declared field '{name}'. "
+                "Dynamic attribute creation is not allowed."
+            )
+
+        # -------------------------------------------------
+        # Internal private mutation (controlled)
+        # -------------------------------------------------
         if name.startswith("_") and self._flags._permit_internal_private_mutation:
             object.__setattr__(self, name, value)
             return
-        
+
+        # -------------------------------------------------
+        # External parcel mutation (transaction context)
+        # -------------------------------------------------
         if self._flags._permit_external_parcels_mutation:
             object.__setattr__(self, name, value)
             return
-        
+
+        # -------------------------------------------------
+        # Otherwise: forbidden
+        # -------------------------------------------------
         raise AttributeError(
-            "Direct assignment is disabled. "
-            "Use 'with Outpost() as outpost:'"
+            "Direct assignment is disabled. " "Use 'with Outpost() as outpost:'"
         )

@@ -2,9 +2,8 @@ from typing import Dict, List, Tuple
 
 import igraph as ig
 
-from skyweaver.units.grid.geometry.basecell import BaseCell
-
-from skyweaver.units.grid.structure.basegrid import BaseGrid
+from skyweaver.units.hexgrid.structure.hexcell import HexCell
+from skyweaver.units.hexgrid.structure.hexgrid import HexGrid
 from skyweaver.units.routes.graph.graph_pack import (
     AirspaceGraphPack,
     RoutesGraphPack,
@@ -34,14 +33,14 @@ class GraphBuilder:
             _vid_to_cell=vid_to_cell,
         )
 
-    def build_routes_graph(self, paths: List[List[BaseCell]]) -> RoutesGraphPack:
+    def build_routes_graph(self, paths: List[List[HexCell]]) -> RoutesGraphPack:
         g1 = ig.Graph(directed=False)
-        cell_to_vid: Dict[BaseCell, int] = {}
-        vid_to_cell: Dict[int, BaseCell] = {}
+        cell_to_vid: Dict[HexCell, int] = {}
+        vid_to_cell: Dict[int, HexCell] = {}
 
         terminals = self._collect_terminals(paths)
 
-        def get_vid(cell: BaseCell) -> int:
+        def get_vid(cell: HexCell) -> int:
             return self._ensure_vertex(g1, cell, terminals, cell_to_vid, vid_to_cell)
 
         for path in paths:
@@ -63,13 +62,13 @@ class GraphBuilder:
 
     def build_terminals_graph(
         self,
-        paths: List[List[BaseCell]],
+        paths: List[List[HexCell]],
     ) -> TerminalsGraphPack:
         g2 = ig.Graph(directed=False)
-        cell_to_vid: Dict[BaseCell, int] = {}
-        vid_to_cell: Dict[int, BaseCell] = {}
+        cell_to_vid: Dict[HexCell, int] = {}
+        vid_to_cell: Dict[int, HexCell] = {}
 
-        def get_vid(cell: BaseCell) -> int:
+        def get_vid(cell: HexCell) -> int:
             return self._ensure_terminal_vertex(g2, cell, cell_to_vid, vid_to_cell)
 
         for path_cells in paths:
@@ -92,7 +91,7 @@ class GraphBuilder:
             _vid_to_cell=vid_to_cell,
         )
 
-    def _compute_cost(self, path: List[BaseCell]) -> float:
+    def _compute_cost(self, path: List[HexCell]) -> float:
         if len(path) < 2:
             return 0.0
         total_cost = 0.0
@@ -104,15 +103,15 @@ class GraphBuilder:
 
     def _build_graph_from_grid(
         self,
-        grid: BaseGrid,
-    ) -> tuple[ig.Graph, Dict[BaseCell, int], Dict[int, BaseCell]]:
+        grid: HexGrid,
+    ) -> tuple[ig.Graph, Dict[HexCell, int], Dict[int, HexCell]]:
         graph = ig.Graph(directed=False)
 
-        cell_to_vid: Dict[BaseCell, int] = {}
-        vid_to_cell: Dict[int, BaseCell] = {}
+        cell_to_vid: Dict[HexCell, int] = {}
+        vid_to_cell: Dict[int, HexCell] = {}
 
         for cell in grid.iter_domain_cells():
-            if not cell.available:
+            if not cell.is_traversable:
                 continue
             vid = graph.vcount()
             graph.add_vertex()
@@ -140,8 +139,8 @@ class GraphBuilder:
 
         return graph, cell_to_vid, vid_to_cell
 
-    def _collect_terminals(self, paths: List[List[BaseCell]]) -> set[BaseCell]:
-        terminals: set[BaseCell] = set()
+    def _collect_terminals(self, paths: List[List[HexCell]]) -> set[HexCell]:
+        terminals: set[HexCell] = set()
         for path in paths:
             if path:
                 terminals.add(path[0])
@@ -151,10 +150,10 @@ class GraphBuilder:
     def _ensure_vertex(
         self,
         graph: ig.Graph,
-        cell: BaseCell,
-        terminals: set[BaseCell],
-        cell_to_vid: Dict[BaseCell, int],
-        vid_to_cell: Dict[int, BaseCell],
+        cell: HexCell,
+        terminals: set[HexCell],
+        cell_to_vid: Dict[HexCell, int],
+        vid_to_cell: Dict[int, HexCell],
     ) -> int:
         vid = cell_to_vid.get(cell)
         if vid is not None:
@@ -172,9 +171,9 @@ class GraphBuilder:
     def _ensure_terminal_vertex(
         self,
         graph: ig.Graph,
-        cell: BaseCell,
-        cell_to_vid: Dict[BaseCell, int],
-        vid_to_cell: Dict[int, BaseCell],
+        cell: HexCell,
+        cell_to_vid: Dict[HexCell, int],
+        vid_to_cell: Dict[int, HexCell],
     ) -> int:
         vid = cell_to_vid.get(cell)
         if vid is not None:

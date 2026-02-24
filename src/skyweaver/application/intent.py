@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from skyweaver.units.grid.geometry.hexcoord import HexCoord
+from skyweaver.units.hexgrid.geometry.hexcoord import HexCoord
 
 
 class HexIntent:

@@ -1,5 +1,4 @@
 import random
-import time
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,7 +6,7 @@ from matplotlib.patches import Polygon as MplPolygon
 
 from skyweaver.core.logistics.depot import Depot
 from skyweaver.units.analysis.metrics import average_path_length, betweenness
-from skyweaver.units.grid.structure.hexgrid import HexGrid
+from skyweaver.units.hexgrid.structure.hexgrid import HexGrid
 from skyweaver.units.routes.graph.graph_builder import GraphBuilder
 from skyweaver.units.routes.graph.graph_pack import AirspaceGraphPack
 from skyweaver.units.routes.logistics.routes_outpost import RoutesOutpost
@@ -22,10 +21,17 @@ depot = Depot()
 grid = HexGrid(cell_size=100.0)
 all_cells = list(grid.iter_domain_cells())
 
+
+def cell_xy(cell):
+    """Explicit conversion: HexCell -> (x, y) in Cartesian coords."""
+    c = grid.cartesian_cell_center(cell)
+    return c.x, c.y
+
+
 # ======================================================
 # 2. Pick initial terminals
 # ======================================================
-available_cells = [c for c in all_cells if c.available]
+available_cells = [c for c in all_cells if c.is_traversable]
 NUM_TERMINALS = 3
 terminals = random.sample(available_cells, NUM_TERMINALS)
 
@@ -38,7 +44,7 @@ candidates = [c for c in all_cells if c not in terminals]
 blocked = random.sample(candidates, int(len(candidates) * BLOCK_RATIO))
 
 for c in blocked:
-    c.set_unavailable()
+    c.set_restricted()
 
 heliports = random.sample(blocked, min(NUM_HELIPORTS, len(blocked)))
 
@@ -57,9 +63,9 @@ planner = Routing(base_graph)
 fig, ax = plt.subplots(figsize=(10, 10))
 ax.set_aspect("equal")
 
-(xmin, xmax), (ymin, ymax) = grid.get_domain()
-ax.set_xlim(xmin, xmax)
-ax.set_ylim(ymin, ymax)
+bounds = grid.domain_bounds()
+ax.set_xlim(bounds.min_x, bounds.max_x)
+ax.set_ylim(bounds.min_y, bounds.max_y)
 
 ax.set_title("Click to add/remove terminals")
 
@@ -68,8 +74,8 @@ ax.set_title("Click to add/remove terminals")
 # ======================================================
 cell_patches = {}
 for cell in all_cells:
-    poly = cell.polygon.exterior.coords
-    face = "lightcoral" if not cell.available else "none"
+    poly = grid.cell_polygon(cell).exterior.coords
+    face = "lightcoral" if not cell.is_traversable else "none"
 
     patch = MplPolygon(
         poly,
@@ -82,20 +88,22 @@ for cell in all_cells:
     cell_patches[cell] = patch
 
 # ======================================================
-# 7. Terminals state
+# 7. Terminals + heliports (static artists)
 # ======================================================
+tx, ty = zip(*(cell_xy(c) for c in terminals)) if terminals else ([], [])
 terminals_scatter = ax.scatter(
-    [c.cartesian_center.x for c in terminals],
-    [c.cartesian_center.y for c in terminals],
+    tx,
+    ty,
     c="green",
     s=140,
     zorder=7,
     label="Terminals",
 )
 
+hx, hy = zip(*(cell_xy(c) for c in heliports)) if heliports else ([], [])
 heliports_scatter = ax.scatter(
-    [c.cartesian_center.x for c in heliports],
-    [c.cartesian_center.y for c in heliports],
+    hx,
+    hy,
     c="red",
     s=110,
     zorder=7,
@@ -143,13 +151,13 @@ def recompute_and_draw():
 
     if len(terminals) < 2:
         apl_text.set_text("APL: 0.0")
-        fig.canvas.draw()
+        fig.canvas.draw_idle()
         return
 
     paths = compute_terminal_paths(planner, terminals)
     if not paths:
         apl_text.set_text("APL: 0.0")
-        fig.canvas.draw()
+        fig.canvas.draw_idle()
         return
 
     routes_graph = builder.build_routes_graph(paths)
@@ -161,12 +169,12 @@ def recompute_and_draw():
         c1 = g1.vs[v1]["cell"]
         c2 = g1.vs[v2]["cell"]
 
-        xs = [c1.cartesian_center.x, c2.cartesian_center.x]
-        ys = [c1.cartesian_center.y, c2.cartesian_center.y]
+        x1, y1 = cell_xy(c1)
+        x2, y2 = cell_xy(c2)
 
         (line,) = ax.plot(
-            xs,
-            ys,
+            [x1, x2],
+            [y1, y2],
             color="blue",
             linewidth=3.0,
             alpha=0.85,
@@ -174,7 +182,7 @@ def recompute_and_draw():
         )
         dynamic_artists.append(line)
 
-    terminals_graph = builder.build_terminals_graph(paths)
+    # APL + betweenness
     apl_result = average_path_length(routes_graph)
     apl_text.set_text(f"APL: {apl_result:.3f}")
 
@@ -182,9 +190,11 @@ def recompute_and_draw():
     for cell_v, value in betw_result.items():
         if value == 0:
             continue
+
+        cx, cy = cell_xy(cell_v)
         txt = ax.text(
-            cell_v.cartesian_center.x,
-            cell_v.cartesian_center.y,
+            cx,
+            cy,
             f"{value}",
             fontsize=9,
             color="darkred",
@@ -211,10 +221,11 @@ def on_mouse_move(event):
         return
 
     cell = grid.get_cell_from_cartesian(event.xdata, event.ydata)
-    if cell is None or not cell.available:
+    if cell is None or not cell.is_traversable:
         return
 
-    mouse_point.set_offsets([[cell.cartesian_center.x, cell.cartesian_center.y]])
+    mx, my = cell_xy(cell)
+    mouse_point.set_offsets([[mx, my]])
     fig.canvas.draw_idle()
 
 
@@ -228,7 +239,7 @@ def on_mouse_click(event):
         return
 
     cell = grid.get_cell_from_cartesian(event.xdata, event.ydata)
-    if cell is None or not cell.available:
+    if cell is None or not cell.is_traversable:
         return
 
     if cell in terminals:
@@ -236,14 +247,12 @@ def on_mouse_click(event):
     else:
         terminals.append(cell)
 
-    pts = np.array(
-        [[c.cartesian_center.x, c.cartesian_center.y] for c in terminals],
-        dtype=float,
-    )
-    if pts.size == 0:
+    if terminals:
+        pts = np.array([cell_xy(c) for c in terminals], dtype=float)
+    else:
         pts = np.empty((0, 2), dtype=float)
-    terminals_scatter.set_offsets(pts)
 
+    terminals_scatter.set_offsets(pts)
     recompute_and_draw()
 
 
@@ -262,8 +271,8 @@ def on_right_click(event):
     if cell in terminals:
         return
 
-    if cell.available:
-        cell.set_unavailable()
+    if cell.is_traversable:
+        cell.set_restricted()
         cell_patches[cell].set_facecolor("lightcoral")
     else:
         cell.set_available()
@@ -283,6 +292,7 @@ def on_right_click(event):
 fig.canvas.mpl_connect("motion_notify_event", on_mouse_move)
 fig.canvas.mpl_connect("button_press_event", on_mouse_click)
 fig.canvas.mpl_connect("button_press_event", on_right_click)
+
 ax.legend()
 recompute_and_draw()
 plt.show()

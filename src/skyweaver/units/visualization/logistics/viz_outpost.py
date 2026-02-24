@@ -5,10 +5,14 @@ from skyweaver.core.logistics.outpost import Outpost
 from skyweaver.core.logistics.parcel import ParcelRole
 from skyweaver.units.clustering.logistics.cluster_parcel import ClusterParcel
 from skyweaver.units.domain.logistics.domain_parcel import DomainParcel
-from skyweaver.units.grid.logistics.grid_parcel import GridParcel
+from skyweaver.units.geodata_domain_alignment.logistics.heliports_parcel import (
+    HeliportsParcel,
+)
+from skyweaver.units.geodata_domain_alignment.logistics.vertiports_parcel import (
+    VertiportsParcel,
+)
+from skyweaver.units.hexgrid.logistics.grid_parcel import GridParcel
 from skyweaver.units.routes.logistics.routes_parcel import RoutesParcel
-from skyweaver.units.sources.logistics.heliports_parcel import HeliportsParcel
-from skyweaver.units.sources.logistics.vertiports_parcel import VertiportsParcel
 
 
 @dataclass

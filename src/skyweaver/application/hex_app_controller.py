@@ -8,7 +8,7 @@ from skyweaver.application.intent import (
     EndDragTerminal,
 )
 from skyweaver.application.dispatcher import IntentDispatcher
-from skyweaver.units.grid.geometry.hexcoord import HexCoord
+from skyweaver.units.hexgrid.geometry.hexcoord import HexCoord
 
 
 class HexApplicationController:

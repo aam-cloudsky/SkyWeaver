@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class HexCoord():
+class HexCoord:
     """
     Axial Coordinates for Hexagonal Grids.
     See https://www.redblobgames.com/grids/hexagons/#coordinates-axial
@@ -10,7 +10,7 @@ class HexCoord():
 
     q: int
     r: int
-    
+
     @property
     def s(self) -> int:
         """
@@ -18,7 +18,7 @@ class HexCoord():
         The constraint is that q + r + s = 0.
         """
         return -self.q - self.r
-    
+
     def __add__(self, other: "HexCoord") -> "HexCoord":
         if not isinstance(other, HexCoord):
             return NotImplemented
@@ -28,7 +28,7 @@ class HexCoord():
         if not isinstance(other, HexCoord):
             return NotImplemented
         return HexCoord(self.q - other.q, self.r - other.r)
-    
+
     def __mul__(self, k: int) -> "HexCoord":
         if not isinstance(k, int):
             return NotImplemented
@@ -42,4 +42,7 @@ class HexCoord():
         Hex lattice norm (cube L1 metric).
         Integer-valued. Not Euclidean.
         """
-        return max(abs(self.q), abs(self.r), abs(self.q + self.r))
+        return max(abs(self.q), abs(self.r), abs(self.s))
+
+    def in_radius(self, radius: int) -> bool:
+        return self.norm() <= radius

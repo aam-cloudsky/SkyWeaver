@@ -4,10 +4,14 @@ from dataclasses import dataclass, field
 from skyweaver.core.logistics.outpost import Outpost
 from skyweaver.core.logistics.parcel import ParcelRole
 from skyweaver.units.clustering.logistics.cluster_parcel import ClusterParcel
-from skyweaver.units.grid.logistics.grid_parcel import GridParcel
+from skyweaver.units.geodata_domain_alignment.logistics.heliports_parcel import (
+    HeliportsParcel,
+)
+from skyweaver.units.geodata_domain_alignment.logistics.vertiports_parcel import (
+    VertiportsParcel,
+)
+from skyweaver.units.hexgrid.logistics.grid_parcel import GridParcel
 from skyweaver.units.routes.logistics.routes_parcel import RoutesParcel
-from skyweaver.units.sources.logistics.heliports_parcel import HeliportsParcel
-from skyweaver.units.sources.logistics.vertiports_parcel import VertiportsParcel
 
 
 @dataclass
@@ -40,6 +44,6 @@ class RoutesOutpost(Outpost):
         default_factory=GridParcel, metadata={"role": ParcelRole.CONSUMED}
     )
     # TODO: This cluster should be a optional consumed.
-    cluster_parcel: ClusterParcel = field(
-        default_factory=ClusterParcel, metadata={"role": ParcelRole.CONSUMED}
-    )
+    # cluster_parcel: ClusterParcel = field(
+    #    default_factory=ClusterParcel, metadata={"role": ParcelRole.CONSUMED}
+    # )
