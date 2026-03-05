@@ -61,7 +61,7 @@ def main():
     sources_unit.run()
 
     print("Geodata loaded successfully.")
-    print(sources_unit._outpost.geodata)
+    # print(sources_unit._outpost.geodata)
 
     # =========================
     # 3. Build domain
@@ -123,13 +123,9 @@ def main():
             p for p in vertiports if p.x == local_center.x and p.y == local_center.y
         ]
         if existing:
-            alignment_unit._outpost.vertiports_parcel.vertiports = [
-                p
-                for p in vertiports
-                if not (p.x == local_center.x and p.y == local_center.y)
-            ]
+            routes_unit.remove_vertiport(cell)
         else:
-            vertiports.append(local_center)
+            routes_unit.add_vertiport(cell)
 
         # Recompute routes after change
         routes_unit.run()
@@ -140,6 +136,12 @@ def main():
         if cell.is_traversable:
             cell.set_restricted()
         else:
+            print(
+                "BUG AQUI. set cell não deveria estar aqui. E devemos verificar se existe heliport"
+            )
+            print(
+                "PRECISAMOS CRIAR UMA CAMADA DE APLICAÇÃO PARA CRIAR AS CONSISTÊNCIAS"
+            )
             cell.set_available()
 
         # Recompute routes after change

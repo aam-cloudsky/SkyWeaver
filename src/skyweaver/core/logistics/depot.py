@@ -4,10 +4,10 @@
 from typing import Any, Dict, Optional, Tuple, cast
 import threading
 from skyweaver.core.bus.protocol.validity_message import ValidityMessage
+from skyweaver.core.bus.runtime.publisher_manager import PublisherReservedIDs
 from skyweaver.core.logistics.validity.sentinel import ValidityTransition, Sentinel
 
 from skyweaver.core.bus.protocol.base_message import BaseMessage
-from skyweaver.core.bus.enums.reserved_id_enum import ReservedIDs
 
 from skyweaver.core.bus.runtime.hub import TopicsEnum, MessageContext
 from skyweaver.core.logistics.lifecycle import LifecycleState, LifecycleStateMessage
@@ -37,7 +37,7 @@ class ThreadSingleton(type):
 
 class Depot(metaclass=ThreadSingleton):
     # self declared reserved
-    __bus_id__ = ReservedIDs.DEPOT.value
+    __bus_id__ = PublisherReservedIDs.DEPOT
 
     def __init__(self):
 
@@ -154,7 +154,8 @@ class Depot(metaclass=ThreadSingleton):
             )
 
         self._set_port.send(
-            DepotUpdate(pallet=confirmed_parcels), to_id=ReservedIDs.BROADCAST.value
+            DepotUpdate(pallet=confirmed_parcels),
+            to_id=PublisherReservedIDs.BROADCAST,
         )
 
     # ------------------------------------------------------------------

@@ -127,7 +127,7 @@ class DomainBuilder:
         half_width = max_abs_x + padding
         half_height = max_abs_y + padding
 
-        return Bounds(
+        return Bounds.from_ranges(
             min_x=-half_width,
             max_x=+half_width,
             min_y=-half_height,
@@ -135,9 +135,4 @@ class DomainBuilder:
         )
 
     def expand_bounds(self, bounds: Bounds, margin: float) -> Bounds:
-        return Bounds(
-            min_x=bounds.min_x - margin,
-            max_x=bounds.max_x + margin,
-            min_y=bounds.min_y - margin,
-            max_y=bounds.max_y + margin,
-        )
+        return bounds.add_margin(margin)

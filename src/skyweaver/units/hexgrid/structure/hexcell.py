@@ -34,6 +34,7 @@ class HexCell:
 
     @property
     def cost(self) -> float:
+
         if not self.is_traversable:
             return float("inf")
         return self._cost

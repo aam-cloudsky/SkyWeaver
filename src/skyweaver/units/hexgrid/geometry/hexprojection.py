@@ -77,19 +77,23 @@ class HexProjection:
         q, r = cls.lerp(a, b, t)
         return cls.hex_round(q, r)
 
-    def pointy_hex_to_pixel(self, hex: HexCoord) -> Tuple[float, float]:
+    def pointy_hex_to_cartesian(self, hex: HexCoord) -> Point:
         size: float = self.size
         x = (3**0.5) * hex.q + ((3**0.5) * hex.r / 2)
         y = 3 / 2 * hex.r
-        return size * x, size * y
+        return Point(size * x, size * y)
 
-    def pixel_to_pointy_hex(self, x: float, y: float) -> HexCoord:
+    def cartesian_to_pointy_hex(self, local: Point) -> HexCoord:
+        x: float = local.x
+        y: float = local.y
         size: float = self.size
         q = ((3**0.5) / 3 * x - (1 / 3) * y) / size
         r = (2 / 3 * y) / size
         return self.hex_round(q, r)
 
-    def pixel_to_pointy_hex_frac(self, x: float, y: float) -> tuple[float, float]:
+    def cartesian_to_pointy_hex_frac(self, local: Point) -> Tuple[float, float]:
+        x: float = local.x
+        y: float = local.y
         size = self.size
         q = ((3**0.5) / 3 * x - (1 / 3) * y) / size
         r = (2 / 3 * y) / size
@@ -97,15 +101,14 @@ class HexProjection:
         return q, r
 
     def axial_bounds_from_cartesian_bounds(self, bounds: Bounds) -> AxialBounds:
-        corners = [
-            self.pixel_to_pointy_hex_frac(bounds.min_x, bounds.min_y),
-            self.pixel_to_pointy_hex_frac(bounds.min_x, bounds.max_y),
-            self.pixel_to_pointy_hex_frac(bounds.max_x, bounds.min_y),
-            self.pixel_to_pointy_hex_frac(bounds.max_x, bounds.max_y),
-        ]
 
-        q_vals = [c[0] for c in corners]
-        r_vals = [c[1] for c in corners]
+        corners_hex_frac = []
+        for corner in bounds.corners:
+            corner_hex_frac = self.cartesian_to_pointy_hex_frac(corner)
+            corners_hex_frac.append(corner_hex_frac)
+
+        q_vals = [c[0] for c in corners_hex_frac]
+        r_vals = [c[1] for c in corners_hex_frac]
 
         min_q: int = int(floor(min(q_vals)))
         max_q: int = int(ceil(max(q_vals)))
@@ -115,17 +118,16 @@ class HexProjection:
         return AxialBounds(min_q=min_q, max_q=max_q, min_r=min_r, max_r=max_r)
 
     def cell_center(self, coord: HexCoord) -> Point:
-        x, y = self.pointy_hex_to_pixel(coord)
-        return Point(x, y)
+        return self.pointy_hex_to_cartesian(coord)
 
     def cell_polygon(self, coord: HexCoord) -> Polygon:
-        cx, cy = self.pointy_hex_to_pixel(coord)
+        cartesian = self.pointy_hex_to_cartesian(coord)
 
         vertices = []
         for i in range(6):
             angle_rad = math.radians(60 * i + 30)
-            x = cx + self.size * math.cos(angle_rad)
-            y = cy + self.size * math.sin(angle_rad)
+            x = cartesian.x + self.size * math.cos(angle_rad)
+            y = cartesian.y + self.size * math.sin(angle_rad)
             vertices.append((x, y))
 
         return Polygon(vertices)

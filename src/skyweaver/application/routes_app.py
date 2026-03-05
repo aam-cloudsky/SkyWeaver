@@ -7,7 +7,7 @@ from shapely.geometry import Point
 
 from skyweaver.core.logistics.depot import Depot
 from skyweaver.units.domain.domain_unit import DomainUnit
-from skyweaver.units.grid.structure.hexgrid import HexGrid
+from skyweaver.units.hexgrid.structure.hexgrid import HexGrid
 from skyweaver.units.routes.routes_unit import RoutesUnit
 from skyweaver.units.sources.sources_unit import SourcesUnit
 from skyweaver.units.visualization.viz_unit import VisualizationUnit

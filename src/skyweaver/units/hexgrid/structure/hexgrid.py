@@ -26,8 +26,8 @@ class HexGrid:
     def __init__(
         self,
         cell_size: float = 1.0,
+        operational_bounds: Bounds = Bounds.empty(),
         orientation: HexOrientation = HexOrientation.POINTY,
-        operational_bounds: Bounds = Bounds(0, 10, 0, 10),
     ):
 
         self._cells: Dict[HexCoord, HexCell] = {}
@@ -56,7 +56,7 @@ class HexGrid:
         return self._domain_bounds
 
     def get_cell_from_coord(self, coord: HexCoord) -> Optional[HexCell]:
-        if not self.coord_inside_domain(coord):
+        if not self.contains_hexcoord(coord):
             return None
 
         cell = self._cells.get(coord)
@@ -65,22 +65,15 @@ class HexGrid:
 
         return cell
 
-    # TODO: BETTER NAMING FOR GET CELLS
-    # accept only point as location
-    def get_cell(self, cartesian: Point) -> Optional[HexCell]:
-        coord = self.projection.pixel_to_pointy_hex(cartesian.x, cartesian.y)
-
-        return self.get_cell_from_coord(coord)
-
-    def get_cell_from_cartesian(self, x: float, y: float) -> Optional[HexCell]:
-        coord = self.projection.pixel_to_pointy_hex(x, y)
+    def get_cell_from_cartesian(self, local: Point) -> Optional[HexCell]:
+        coord = self.projection.cartesian_to_pointy_hex(local)
 
         return self.get_cell_from_coord(coord)
 
     def get_cell_from_cartesians(self, points: Iterable[Point]) -> List[HexCell]:
         cells: list[HexCell] = []
         for point in points:
-            cell = self.get_cell_from_cartesian(point.x, point.y)
+            cell = self.get_cell_from_cartesian(point)
             if cell is not None:
                 cells.append(cell)
 
@@ -118,31 +111,30 @@ class HexGrid:
         min_distance: int = self.topology.hex_distance(a.coord, b.coord)
         return min_distance  # Default implementation; override in subclasses
 
-    def coord_inside_domain(
-        self,
-        coord: HexCoord,
-    ) -> bool:
-        x, y = self.projection.pointy_hex_to_pixel(coord)
-        xmin, xmax = self._domain_bounds.min_x, self._domain_bounds.max_x
-        ymin, ymax = self._domain_bounds.min_y, self._domain_bounds.max_y
-        return xmin <= x <= xmax and ymin <= y <= ymax
-
     def cartesian_cell_center(self, cell: HexCell) -> Point:
+        """
+        Local coordnate system
+
+        """
         return self.projection.cell_center(cell.coord)
 
     def cell_polygon(self, cell: HexCell) -> Polygon:
+        """
+        Local coordnate system
+
+        """
         return self.projection.cell_polygon(cell.coord)
 
     # =======================================================
-    # Static Methods
+    # Contains functions
     # =======================================================
 
-    @staticmethod
-    def inside_domain(
-        x: float,
-        y: float,
-        bounds: Bounds,
-    ) -> bool:
-        xmin, xmax = bounds.min_x, bounds.max_x
-        ymin, ymax = bounds.min_y, bounds.max_y
-        return xmin <= x <= xmax and ymin <= y <= ymax
+    def contains_cartesian(self, local: Point) -> bool:
+        return self._domain_bounds.contains(local)
+
+    def contains_hexcoord(self, coord: HexCoord) -> bool:
+        cartesian = self.projection.pointy_hex_to_cartesian(coord)
+        return self.contains_cartesian(cartesian)
+
+    def contains_cell(self, cell: HexCell) -> bool:
+        return self.contains_hexcoord(cell.coord)

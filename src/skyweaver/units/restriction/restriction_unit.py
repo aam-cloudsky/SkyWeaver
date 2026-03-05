@@ -50,7 +50,7 @@ class RestrictionUnit(OperationalUnit[RestrictionOutpost]):
         cells: Set[HexCell] = set()
 
         for point in points:
-            cell: Optional[HexCell] = grid.get_cell(cartesian=point)
+            cell: Optional[HexCell] = grid.get_cell_from_cartesian(point)
             if cell is not None:
                 cells.add(cell)
 

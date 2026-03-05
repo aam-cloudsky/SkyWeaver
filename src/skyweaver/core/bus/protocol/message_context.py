@@ -1,18 +1,23 @@
 from dataclasses import dataclass, field
 from typing import Optional
-from uuid import UUID, uuid4
-from skyweaver.core.bus.enums.reserved_id_enum import ReservedIDs
+
+
+from skyweaver.core.bus.runtime.publisher_manager import (
+    PublisherID,
+    PublisherReservedIDs,
+)
+from skyweaver.core.bus.runtime.trace_id import TraceID
 
 
 @dataclass
 class MessageContext:
     publisher_type: type
-    from_id: int
-    to_id: int = ReservedIDs.BROADCAST.value
-    
-    exclude_ids: list[int] = field(default_factory=list)
-    trace_id: UUID = field(default_factory=uuid4)
-    reply_to: Optional[UUID] = None
+    from_id: PublisherID
+    to_id: PublisherID = PublisherReservedIDs.BROADCAST
+
+    exclude_ids: list[PublisherID] = field(default_factory=list)
+    trace_id: TraceID = field(default_factory=TraceID)
+    reply_to: Optional[TraceID] = None
     _deferred: list = field(default_factory=list)
     _closed: bool = field(default=False)
     _result = None
@@ -27,7 +32,7 @@ class MessageContext:
             func(*args, **kwargs)
 
     def close_transaction(self, result):
-        #if self._closed:
+        # if self._closed:
         #    raise RuntimeError("Transaction already closed")
 
         self._closed = True

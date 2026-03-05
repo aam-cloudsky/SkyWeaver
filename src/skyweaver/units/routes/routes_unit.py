@@ -1,17 +1,15 @@
 from typing import List, Optional
 
+from shapely.geometry import Point
+
 from skyweaver.core.operations.operational_unit import OperationalUnit
 
 from skyweaver.units.hexgrid.structure.hexcell import HexCell
 from skyweaver.units.routes.graph.graph_builder import GraphBuilder
 from skyweaver.units.routes.logistics.routes_outpost import RoutesOutpost
-from skyweaver.units.routes.routing import Routing, compute_terminal_paths
+from skyweaver.units.routes.routing import Routing
 
 
-# TODO: The class Routing seems a bit odd, once it
-# Routes Unit is already called route.
-# Maybe it should be renamed to something like RoutePlanner or RouteCalculator,
-# to avoid confusion with the unit name and to better reflect its purpose.
 class RoutesUnit(OperationalUnit[RoutesOutpost]):
     def __init__(self, outpost: Optional[RoutesOutpost] = None):
 
@@ -22,49 +20,59 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
         print(
             "[RoutesUnit] TODO: Cluster Parcel Should be a Optional Consumed Parcel, therefore, 'CONSUMED' is not the right role"
         )
-
         self.builder = GraphBuilder(outpost=self._outpost)
-        self.airspace_graph = self.builder.build_airspace_graph()
+        with self._outpost:
 
-        self.planner = Routing(self.airspace_graph)
+            airspace_graph = self.builder.build_airspace_graph()
+            self._outpost.routes_parcel.airspace_graph = airspace_graph
+
+        # self._terminals: List[HexCell] = self._get_terminals()
+
+    def _from_cartesian_to_hex(self, cartesian: Point) -> Optional[HexCell]:
+        grid = self._outpost.grid_parcel.grid
+        return grid.get_cell_from_cartesian(cartesian)
+
+    def _from_cell_to_cartesian(self, hex: HexCell):
+        grid = self._outpost.grid_parcel.grid
+        return grid.cartesian_cell_center(hex)
+
+    def add_vertiport(self, cell: HexCell) -> None:
+
+        if not self._is_cell_available(cell):
+            return
+
+        new_vertiport: Point = self._from_cell_to_cartesian(cell)
 
         with self._outpost:
-            self._outpost.routes_parcel.airspace_graph = self.airspace_graph
+            self._outpost.vertiports_parcel.vertiports.append(new_vertiport)
 
-        self._terminals: List[HexCell] = self._get_terminals()
+    def remove_vertiport(self, cell: HexCell) -> None:
 
-    def add_terminal(self, cell: HexCell) -> None:
-        if cell not in self._terminals:
-            self._terminals.append(cell)
+        to_be_removed_vertiport = self._from_cell_to_cartesian(cell)
 
-    def remove_terminal(self, cell: HexCell) -> None:
-        if cell in self._terminals:
-            self._terminals.remove(cell)
+        if to_be_removed_vertiport not in self._outpost.vertiports_parcel.vertiports:
+            return
 
-    def clear_terminals(self) -> None:
-        self._terminals.clear()
+        with self._outpost:
+            self._outpost.vertiports_parcel.vertiports.remove(to_be_removed_vertiport)
 
-    def _get_terminals(self) -> List[HexCell]:
+    def clear_vertiports(self) -> None:
+        with self._outpost:
+            self._outpost.vertiports_parcel.vertiports.clear()
+
+    def _get_vertiports(self) -> List[HexCell]:
         # combine local terminals with terminals from vertiports
-        if hasattr(self, "_terminals") and self._terminals:
-            terminals = list(self._terminals)
-        else:
-            terminals = []
-
         vertiports = self._outpost.vertiports_parcel.vertiports
         grid = self._outpost.grid_parcel.grid
-        for vertiport in vertiports:
-            cell = grid.get_cell_from_cartesian(vertiport.x, vertiport.y)
-            if cell and cell not in terminals:
-                terminals.append(cell)
-
-        return terminals
+        return grid.get_cell_from_cartesians(vertiports)
 
     def run(self) -> None:
 
-        terminals = self._get_terminals()
-
-        paths: List[List[HexCell]] = compute_terminal_paths(self.planner, terminals)
+        vertiports = self._get_vertiports()
+        airspace_graph = self._outpost.routes_parcel.airspace_graph
+        paths: List[List[HexCell]] = Routing.compute_terminal_paths(
+            airspace_graph, vertiports
+        )
 
         routes_graph = self.builder.build_routes_graph(paths)
         terminals_graph = self.builder.build_terminals_graph(paths)
@@ -73,6 +81,9 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
             self._outpost.routes_parcel.routes_graph = routes_graph
             self._outpost.routes_parcel.terminals_graph = terminals_graph
 
+    # =========================================================================
+    # Cells
+    # =========================================================================
     def is_cell_on_route(self, cell: HexCell) -> bool:
         routes_graph = self._outpost.routes_parcel.routes_graph
         if routes_graph is None:
@@ -83,8 +94,22 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
                 return True
         return False
 
-    def rebuild_airspace_graph(self) -> None:
-        self.airspace_graph = self.builder.build_airspace_graph()
-        self.planner = Routing(self.airspace_graph)
-        with self._outpost:
-            self._outpost.routes_parcel.airspace_graph = self.airspace_graph
+    def _is_cell_available(self, cell: HexCell):
+        if not cell.is_traversable:
+            return False
+
+        if self._cell_has_heliport(cell):
+            return False
+
+        return True
+
+    def _cell_has_heliport(self, cell: HexCell) -> bool:
+
+        grid = self._outpost.grid_parcel.grid
+        heliports = self._outpost.heliports_parcel.heliports
+
+        for p in heliports:
+            if grid.get_cell_from_cartesian(p) == cell:
+                return True
+
+        return False

@@ -1,3 +1,4 @@
+import math
 from typing import Iterable, List
 
 from typing import Dict, List
@@ -13,16 +14,30 @@ from skyweaver.units.routes.graph.graph_pack import AirspaceGraphPack
 
 class Routing:
 
-    def __init__(self, airspace_graph: AirspaceGraphPack):
-        self.graph = airspace_graph.graph
-        self.cell_to_vid: Dict[HexCell, int] = airspace_graph._cell_to_vid
-        self.vid_to_cell: Dict[int, HexCell] = airspace_graph._vid_to_cell
+    # def __init__(self, airspace_graph: AirspaceGraphPack):
+    # self.graph = airspace_graph.graph
+    # self.cell_to_vid: Dict[HexCell, int] = airspace_graph._cell_to_vid
+    # self.vid_to_cell: Dict[int, HexCell] = airspace_graph._vid_to_cell
+    STEP_WEIGHT = 1
 
+    @staticmethod
+    def obtain_edges_weights(airspace_graph: AirspaceGraphPack):
+        weights: list[float] = []
+
+        for edge in airspace_graph.graph.es:
+            u, v = edge.tuple
+            cell_u = airspace_graph._vid_to_cell[u]
+            cell_v = airspace_graph._vid_to_cell[v]
+            edge_weight = Routing.STEP_WEIGHT + (0.5 * (cell_u.cost + cell_v.cost))
+            weights.append(edge_weight)
+
+        return weights
+
+    @staticmethod
     def shortest_path(
-        self,
+        airspace_graph: AirspaceGraphPack,
         a: HexCell,
         b: HexCell,
-        return_path: bool = True,
     ) -> tuple[float, list[HexCell] | None]:
         """
         Shortest path query on base graph (G0).
@@ -31,52 +46,55 @@ class Routing:
             (cost, path_cells or None)
         """
 
-        v_a = self.cell_to_vid[a]
-        v_b = self.cell_to_vid[b]
+        v_a = airspace_graph._cell_to_vid[a]
+        v_b = airspace_graph._cell_to_vid[b]
 
-        res = self.graph.get_shortest_paths(
+        weights: list[float] = Routing.obtain_edges_weights(airspace_graph)
+
+        res = airspace_graph.graph.get_shortest_paths(
             v=v_a,
             to=v_b,
-            weights="weight",
-            output="vpath" if return_path else "epath",
+            weights=weights,
+            output="vpath",
         )
 
         if not res or not res[0]:
             return float("inf"), None
 
-        if not return_path:
-            cost = sum(self.graph.es[eid]["weight"] for eid in res[0])
-            return cost, None
-
         vpath = res[0]
-        cells = [self.vid_to_cell[v] for v in vpath]
+        cells = [airspace_graph._vid_to_cell[v] for v in vpath]
 
         cost = 0.0
         for u, v in zip(vpath[:-1], vpath[1:]):
-            eid = self.graph.get_eid(u, v)
-            cost += self.graph.es[eid]["weight"]
+            eid = airspace_graph.graph.get_eid(u, v)
+            cost += airspace_graph.graph.es[eid]["weight"]
 
         return cost, cells
 
+    @staticmethod
+    def compute_terminal_paths(
+        airspace_graph: AirspaceGraphPack,
+        terminals: Iterable[HexCell],
+    ) -> List[List[HexCell]]:
+        """
+        Compute shortest paths between all terminal (AirspaceGraphPack G0 → paths).
 
-def compute_terminal_paths(
-    planner: Routing,
-    terminals: Iterable[HexCell],
-) -> List[List[HexCell]]:
-    """
-    Compute shortest paths between all terminal pairs (G0 → paths).
+        Returns:
+            List of paths (each path is a list of HexCell)
+        """
+        paths: List[List[HexCell]] = []
 
-    Returns:
-        List of paths (each path is a list of HexCell)
-    """
-    paths: List[List[HexCell]] = []
+        for a, b in combinations(terminals, 2):
+            if (
+                a not in airspace_graph._cell_to_vid
+                or b not in airspace_graph._cell_to_vid
+            ):
+                continue
 
-    for a, b in combinations(terminals, 2):
-        if a not in planner.cell_to_vid or b not in planner.cell_to_vid:
-            continue
+            cost, cells = Routing.shortest_path(airspace_graph, a, b)
 
-        cost, cells = planner.shortest_path(a, b)
-        if cells is not None:
-            paths.append(cells)
+            # to make sure invalid path will not to propagate
+            if cells is not None and not math.isinf(cost):
+                paths.append(cells)
 
-    return paths
+        return paths

@@ -1,14 +1,18 @@
-from typing import Any, Callable, Dict, Optional, Type, Set, cast
+from typing import Any, Callable, Dict, Optional
 from uuid import UUID
+
 from skyweaver.core.bus.protocol.base_message import BaseMessage
 from skyweaver.core.bus.protocol.message_context import MessageContext
 from skyweaver.core.bus.protocol.message_handler import MessageHandler
 from skyweaver.core.bus.runtime.hub import MessageHub
-from skyweaver.core.bus.enums.reserved_id_enum import ReservedIDs
+
 from skyweaver.core.bus.enums.topics_enum import TopicsEnum
-from skyweaver.core.logistics.depot_messages import DepotGet, DepotSet, DepotUpdate
-from skyweaver.core.logistics.lifecycle import LifecycleState, LifecycleStateMessage
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.bus.runtime.publisher_manager import (
+    Publisher,
+    PublisherID,
+    PublisherReservedIDs,
+)
+from skyweaver.core.bus.runtime.trace_id import TraceID
 
 
 class Port:
@@ -19,7 +23,7 @@ class Port:
         on_arrive: Callable[[BaseMessage, MessageContext], Any] = lambda msg, ctx: None,
         on_end_arrive: Callable[[Optional[Any]], Any] = lambda result: None,
     ):
-        
+
         self.topic: TopicsEnum = topic
         self._on_arrive = on_arrive
         self._on_end_arrive = on_end_arrive
@@ -34,11 +38,19 @@ class Port:
             handler=handler,
         )
 
-    def send(self, message: BaseMessage, to_id: int = ReservedIDs.DEPOT.value, reply_to: Optional[UUID] = None):
+    def send(
+        self,
+        message: BaseMessage,
+        to_id: PublisherID = PublisherReservedIDs.DEPOT,
+        reply_to: Optional[TraceID] = None,
+    ):
 
-        publisher_type = self._message_hub.resolve_owner_type(self._publisher_id)
+        publisher: Optional[Publisher] = self._message_hub.get_publisher(
+            self._publisher_id
+        )
+        # publisher_type = self._message_hub.resolve_owner_type(self._publisher_id)
 
-        if publisher_type is None:
+        if publisher is None:
             raise RuntimeError(
                 "Invariant violation: Port has publisher_id but no owner_type registered"
             )
@@ -49,7 +61,7 @@ class Port:
             message_context=MessageContext(
                 from_id=self._publisher_id,
                 to_id=to_id,
-                publisher_type=publisher_type,
+                publisher_type=publisher.owner_type,
                 reply_to=reply_to,
             ),
         )

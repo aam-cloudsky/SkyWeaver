@@ -155,16 +155,9 @@ class VisualizationUnit(OperationalUnit[VizOutpost]):
         # --------------------------------------------------
         # 1️⃣ Compute projected bounds from local grid bounds
         # --------------------------------------------------
-        b = grid.domain_bounds()
+        domain_bounds = grid.domain_bounds()
 
-        corners_local = [
-            Point(b.min_x, b.min_y),
-            Point(b.min_x, b.max_y),
-            Point(b.max_x, b.min_y),
-            Point(b.max_x, b.max_y),
-        ]
-
-        gdf = lf.to_crs(corners_local)
+        gdf = lf.to_crs(domain_bounds.corners)
 
         xs = [p.x for p in gdf.geometry]
         ys = [p.y for p in gdf.geometry]
@@ -302,7 +295,7 @@ class VisualizationUnit(OperationalUnit[VizOutpost]):
             return
 
         grid = self._outpost.grid_parcel.grid
-        cell = grid.get_cell_from_cartesian(event.xdata, event.ydata)
+        cell = grid.get_cell_from_cartesian(Point(event.xdata, event.ydata))
         if cell is None:
             return
 
