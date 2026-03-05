@@ -11,7 +11,7 @@ from typing import (
     get_args,
 )
 from dataclasses import dataclass, fields
-from dataclasses import dataclass, field, fields
+
 from typing import Dict, Optional, Set, Type
 
 from skyweaver.core.bus.protocol.base_message import BaseMessage
