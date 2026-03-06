@@ -34,7 +34,7 @@ class Bounds:
     def bottom_right(self) -> Point:
         return Point(self.max_x, self.min_y)
 
-    def add_margin(self, margin: float) -> "Bounds":
+    def expand(self, margin: float) -> "Bounds":
 
         new_x_max = self.max_x + margin
         new_y_max = self.max_y + margin

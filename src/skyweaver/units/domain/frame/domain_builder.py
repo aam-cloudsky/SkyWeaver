@@ -51,21 +51,27 @@ class DomainBuilder:
         min_y = min(ys)
         max_y = max(ys)
 
-        operational = Bounds(
-            min_x - padding,
-            max_x + padding,
-            min_y - padding,
-            max_y + padding,
+        bounds = Bounds(
+            min_x,
+            max_x,
+            min_y,
+            max_y,
         )
+        # operational = Bounds(
+        #    min_x - padding,
+        #    max_x + padding,
+        #    min_y - padding,
+        #    max_y + padding,
+        # )
 
-        visualization = Bounds(
-            operational.min_x - margin,
-            operational.max_x + margin,
-            operational.min_y - margin,
-            operational.max_y + margin,
-        )
+        # visualization = Bounds(
+        #    operational.min_x - margin,
+        #    operational.max_x + margin,
+        #    operational.min_y - margin,
+        #    operational.max_y + margin,
+        # )
 
-        return operational, visualization
+        return bounds.expand(padding), bounds.expand(margin)  # visualization
 
     def _from_layers(self, layers: list[gpd.GeoDataFrame]):
         if not layers:
@@ -96,18 +102,20 @@ class DomainBuilder:
         print("Reprojected GeoDataFrame to domain CRS.")
         local_frame = LocalFrame(center)
         local_points = local_frame.to_local(gdf_metric)
+
+        operational, visualization = self.compute_bounds(local_points, padding, margin)
         print(
             f"Converted geometries to local coordinates. Sample local point: ({local_points[0].x}, {local_points[0].y})"
         )
-        operational = self.compute_bounds_axis_aligned(
-            local_points,
-            padding,
-        )
+        # operational = self.compute_bounds_axis_aligned(
+        #    local_points,
+        #    padding,
+        # )
         print(f"Computed operational bounds: {operational}")
-        visualization = self.expand_bounds(
-            operational,
-            margin,
-        )
+        # visualization = self.expand_bounds(
+        #    operational,
+        #    margin,
+        # )
         print(f"Computed visualization bounds: {visualization}")
         return Domain(
             center=center,
@@ -135,4 +143,4 @@ class DomainBuilder:
         )
 
     def expand_bounds(self, bounds: Bounds, margin: float) -> Bounds:
-        return bounds.add_margin(margin)
+        return bounds.expand(margin)
