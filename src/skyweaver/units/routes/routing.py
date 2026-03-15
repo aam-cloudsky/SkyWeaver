@@ -11,6 +11,42 @@ from itertools import combinations
 from skyweaver.units.hexgrid.structure.hexcell import HexCell
 from skyweaver.units.routes.graph.graph_pack import AirspaceGraphPack
 
+# ---------------------------------------------------------------------
+# NOTE: Incremental path recomputation (future optimization)
+#
+# Currently, whenever cell weights change (e.g., restrictions added or
+# removed), terminal paths are recomputed from scratch.
+#
+# In principle this could be optimized:
+#
+# 1. Cost increases (e.g., adding restrictions)
+#    Only paths that traverse the affected cells must be recomputed.
+#    This could be implemented by maintaining an index:
+#
+#        cell -> paths using that cell
+#
+#    Then only those paths would be recomputed.
+#
+# 2. Cost decreases (e.g., removing restrictions)
+#    This case is more complex. A new shorter route could appear that
+#    does not intersect any previously optimal path. In this case many
+#    paths may need recomputation.
+#
+# Properly handling both cases leads to dynamic shortest-path algorithms
+# such as LPA* or D*, which is beyond the current scope of the system.
+#
+# In the current system the number of terminals is small, so full
+# recomputation remains computationally acceptable while keeping the
+# implementation simple.
+#
+# Future optimization ideas:
+
+# # TODO: Recompute only paths affected by weight increases.
+# TODO: Recompute all paths when weight decreases occur.
+# TODO: Maintain a cell -> paths index to detect paths affected by weight increases.
+# TODO: When weights decrease, recompute all terminal paths to ensure optimality.
+# ---------------------------------------------------------------------
+
 
 class Routing:
 
@@ -21,6 +57,17 @@ class Routing:
     STEP_WEIGHT = 1
 
     @staticmethod
+    def edge_weight(a: HexCell, b: HexCell) -> float:
+        return Routing.STEP_WEIGHT + 0.5 * (a.cost + b.cost)
+
+    @staticmethod
+    def path_weight(path: List[HexCell]) -> float:
+        total = 0.0
+        for a, b in zip(path[:-1], path[1:]):
+            total += Routing.edge_weight(a, b)
+        return total
+
+    @staticmethod
     def obtain_edges_weights(airspace_graph: AirspaceGraphPack):
         weights: list[float] = []
 
@@ -28,7 +75,7 @@ class Routing:
             u, v = edge.tuple
             cell_u = airspace_graph._vid_to_cell[u]
             cell_v = airspace_graph._vid_to_cell[v]
-            edge_weight = Routing.STEP_WEIGHT + (0.5 * (cell_u.cost + cell_v.cost))
+            edge_weight = Routing.edge_weight(cell_u, cell_v)
             weights.append(edge_weight)
 
         return weights
@@ -38,6 +85,7 @@ class Routing:
         airspace_graph: AirspaceGraphPack,
         a: HexCell,
         b: HexCell,
+        weights: list[float],
     ) -> tuple[float, list[HexCell] | None]:
         """
         Shortest path query on base graph (G0).
@@ -49,7 +97,7 @@ class Routing:
         v_a = airspace_graph._cell_to_vid[a]
         v_b = airspace_graph._cell_to_vid[b]
 
-        weights: list[float] = Routing.obtain_edges_weights(airspace_graph)
+        # weights: list[float] = Routing.obtain_edges_weights(airspace_graph)
 
         res = airspace_graph.graph.get_shortest_paths(
             v=v_a,
@@ -62,14 +110,10 @@ class Routing:
             return float("inf"), None
 
         vpath = res[0]
-        cells = [airspace_graph._vid_to_cell[v] for v in vpath]
+        path: list[HexCell] = [airspace_graph._vid_to_cell[v] for v in vpath]
 
-        cost = 0.0
-        for u, v in zip(vpath[:-1], vpath[1:]):
-            eid = airspace_graph.graph.get_eid(u, v)
-            cost += airspace_graph.graph.es[eid]["weight"]
-
-        return cost, cells
+        path_weight = Routing.path_weight(path)
+        return path_weight, path
 
     @staticmethod
     def compute_terminal_paths(
@@ -83,7 +127,7 @@ class Routing:
             List of paths (each path is a list of HexCell)
         """
         paths: List[List[HexCell]] = []
-
+        weights: list[float] = Routing.obtain_edges_weights(airspace_graph)
         for a, b in combinations(terminals, 2):
             if (
                 a not in airspace_graph._cell_to_vid
@@ -91,7 +135,7 @@ class Routing:
             ):
                 continue
 
-            cost, cells = Routing.shortest_path(airspace_graph, a, b)
+            cost, cells = Routing.shortest_path(airspace_graph, a, b, weights)
 
             # to make sure invalid path will not to propagate
             if cells is not None and not math.isinf(cost):

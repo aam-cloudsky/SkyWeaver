@@ -18,6 +18,7 @@ from skyweaver.units.routes.logistics.routes_outpost import RoutesOutpost
 class GraphBuilder:
     """
     Builds graph representations from the current grid and path sets.
+    Topology only. Weight computation should not live here.
     """
 
     def __init__(self, outpost: RoutesOutpost):
@@ -43,13 +44,18 @@ class GraphBuilder:
         def get_vid(cell: HexCell) -> int:
             return self._ensure_vertex(g1, cell, terminals, cell_to_vid, vid_to_cell)
 
+        edges = set()
         for path in paths:
             for a, b in zip(path[:-1], path[1:]):
                 va = get_vid(a)
                 vb = get_vid(b)
-                if not g1.are_connected(va, vb):
-                    g1.add_edge(va, vb)
 
+                edge = tuple(sorted((va, vb)))
+                edges.add(edge)
+        # if not g1.are_connected(va, vb):
+        #    g1.add_edge(va, vb)
+
+        g1.add_edges(list(edges))
         g1["cell_to_vertex_id"] = cell_to_vid
         g1["vertex_id_to_cell"] = vid_to_cell
 
@@ -77,11 +83,10 @@ class GraphBuilder:
             g2.add_edge(
                 get_vid(start),
                 get_vid(end),
-                weight=self._compute_cost(path_cells),
                 path=path_cells,
             )
 
-        # TODO: Redundância no armazenamento de mapas, pode ser otimizado
+        # TODO: Redundância no armazenamento de mapas, pode ser otimizado ?
         g2["cell_to_vertex_id"] = cell_to_vid
         g2["vertex_id_to_cell"] = vid_to_cell
 
@@ -90,16 +95,6 @@ class GraphBuilder:
             _cell_to_vid=cell_to_vid,
             _vid_to_cell=vid_to_cell,
         )
-
-    def _compute_cost(self, path: List[HexCell]) -> float:
-        if len(path) < 2:
-            return 0.0
-        total_cost = 0.0
-        for a, b in zip(path[:-1], path[1:]):
-            # Rough cost: average of cell costs along the path
-            edge_cost = 0.5 * (a.cost + b.cost)
-            total_cost += edge_cost
-        return total_cost
 
     def _build_graph_from_grid(
         self,
@@ -119,7 +114,6 @@ class GraphBuilder:
             vid_to_cell[vid] = cell
 
         edges = []
-        weights = []
 
         for cell, vid in cell_to_vid.items():
             for neighbor in grid.neighbors(cell):
@@ -127,10 +121,8 @@ class GraphBuilder:
                 if nvid is None or nvid <= vid:
                     continue
                 edges.append((vid, nvid))
-                weights.append(0.5 * (cell.cost + neighbor.cost))
 
         graph.add_edges(edges)
-        graph.es["weight"] = weights
 
         # TODO: Esses cálculos estão bem parecidos com o
         # build terminal paths, pode ser otimizado para evitar redundância
