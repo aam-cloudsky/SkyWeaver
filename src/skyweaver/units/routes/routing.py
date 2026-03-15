@@ -41,10 +41,46 @@ from skyweaver.units.routes.graph.graph_pack import AirspaceGraphPack
 #
 # Future optimization ideas:
 
-# # TODO: Recompute only paths affected by weight increases.
+# TODO: Recompute only paths affected by weight increases.
 # TODO: Recompute all paths when weight decreases occur.
 # TODO: Maintain a cell -> paths index to detect paths affected by weight increases.
 # TODO: When weights decrease, recompute all terminal paths to ensure optimality.
+# ---------------------------------------------------------------------
+# 2. Terminal connectivity optimization
+#
+# Currently, routes are computed between all pairs of n terminals:
+#
+#        O(n^2) shortest-path queries.
+#
+# This becomes expensive as the number of terminals grows.
+#
+# A possible simplification is to connect each terminal only to its
+# nearest neighbors instead of computing all-to-all paths.
+#
+# For example:
+#
+#        terminal -> k nearest terminals
+#
+# where k is a small constant (e.g., 2–3).
+#
+# This reduces the number of routing queries from:
+#
+#        O(n^2)
+#
+# to approximately:
+#
+#        O(kn)
+#
+# while still producing a well-connected routes graph in most cases.
+#
+#
+# This optimization is not implemented yet because the number of
+# terminals in the current system is small and the full all-pairs
+# computation remains manageable.
+#
+# TODO: Consider replacing all-pairs routing with k-nearest terminal
+#       connectivity when the number of terminals grows.
+# TODO: Add the k parameter inside the yaml file.
 # ---------------------------------------------------------------------
 
 
