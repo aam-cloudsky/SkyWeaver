@@ -8,6 +8,7 @@ import geopandas as gpd
 from shapely.geometry import LineString
 
 
+from skyweaver.application.runtime.logistics.runtime_outpost import RuntimeOutpost
 from skyweaver.core.logistics.parcel import Parcel
 from skyweaver.units.domain.frame.domain import Domain
 from skyweaver.units.domain.logistics.domain_parcel import DomainParcel
@@ -150,45 +151,39 @@ class SceneMaterializer:
         return asdict(transport_scene)
 
     def materialize(
-        self,
-        pallet: dict[type[Parcel], Parcel],
+        self, pallet: dict[type[Parcel], Parcel], outpost: RuntimeOutpost
     ) -> SceneSnapshot:
 
         layers: list[MapLayer] = []
 
-        domain_parcel = pallet.get(DomainParcel)
-        grid_parcel = pallet.get(GridParcel)
-        heliports_parcel = pallet.get(HeliportsParcel)
-        vertiports_parcel = pallet.get(VertiportsParcel)
-        routes_parcel = pallet.get(RoutesParcel)
+        for parcel_type, parcel in pallet.items():
+            if isinstance(parcel, HeliportsParcel):
+                layers.append(self._build_heliports_layer(parcel, outpost))
 
-        if not isinstance(domain_parcel, DomainParcel):
-            return SceneSnapshot(layers=[])
+            if isinstance(parcel, VertiportsParcel):
+                layers.append(self._build_vertiports_layer(parcel, outpost))
 
-        domain = domain_parcel.domain
-
-        if isinstance(heliports_parcel, HeliportsParcel):
-            layers.append(self._build_heliports_layer(domain, heliports_parcel))
-
-        if isinstance(vertiports_parcel, VertiportsParcel):
-            layers.append(self._build_vertiports_layer(domain, vertiports_parcel))
-
-        if isinstance(routes_parcel, RoutesParcel) and isinstance(
-            grid_parcel, GridParcel
-        ):
-            layers.append(
-                self._build_routes_layer(domain, grid_parcel.grid, routes_parcel)
-            )
+            if isinstance(parcel, RoutesParcel):
+                print(parcel)
+                layers.append(self._build_routes_layer(parcel, outpost))
 
         return SceneSnapshot(layers=layers)
 
     def _build_vertiports_layer(
-        self,
-        domain: Domain,
-        vertiports_parcel: VertiportsParcel,
+        self, vertiports_parcel: VertiportsParcel, outpost: RuntimeOutpost
     ) -> MapLayer:
-        vertiports = vertiports_parcel.vertiports
-        gdf = domain.local_to_geo_coord(vertiports)
+        snapped_points = []
+        grid = outpost.grid_parcel.grid
+        domain = outpost.domain_parcel.domain
+
+        for point in vertiports_parcel.vertiports:
+            cell = grid.get_cell_from_cartesian(point)
+            if cell is None:
+                continue
+
+            snapped_points.append(grid.cartesian_cell_center(cell))
+
+        gdf = domain.local_to_geo_coord(snapped_points)
 
         return MapLayer(
             id="vertiports",
@@ -199,9 +194,10 @@ class SceneMaterializer:
 
     def _build_heliports_layer(
         self,
-        domain: Domain,
         heliports_parcel: HeliportsParcel,
+        runtime_outpost: RuntimeOutpost,
     ) -> MapLayer:
+        domain = runtime_outpost.domain_parcel.domain
         heliports = heliports_parcel.heliports
         gdf = domain.local_to_geo_coord(heliports)
 
@@ -214,13 +210,20 @@ class SceneMaterializer:
 
     def _build_routes_layer(
         self,
-        domain: Domain,
-        grid: HexGrid,
         routes_parcel: RoutesParcel,
+        runtime_outpost: RuntimeOutpost,
     ) -> MapLayer:
         rows = []
 
+        domain = runtime_outpost.domain_parcel.domain
+        grid = runtime_outpost.grid_parcel.grid
+        print(
+            f"[SceneMaterializer] incoming route paths: {len(routes_parcel.routes_graph.paths)}"
+        )
+
         for route_index, path in enumerate(routes_parcel.routes_graph.paths):
+            print(f"[SceneMaterializer] path {route_index} cell count: {len(path)}")
+
             if len(path) < 2:
                 continue
 
@@ -230,6 +233,10 @@ class SceneMaterializer:
             coords = [
                 (point.x, point.y) for point in gdf.geometry if isinstance(point, Point)
             ]
+
+            print(
+                f"[SceneMaterializer] path {route_index} projected coords: {len(coords)}"
+            )
 
             if len(coords) < 2:
                 continue

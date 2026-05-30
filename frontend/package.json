@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@deck.gl/mapbox": "^9.3.2",
+    "@turf/turf": "^7.3.5",
     "@vueuse/core": "^14.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

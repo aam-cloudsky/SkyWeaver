@@ -26,10 +26,6 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
             "[RoutesUnit] TODO: Cluster Parcel Should be a Optional Consumed Parcel, therefore, 'CONSUMED' is not the right role"
         )
         self.builder = GraphBuilder(outpost=self._outpost)
-        with self._outpost:
-
-            airspace_graph = self.builder.build_airspace_graph()
-            self._outpost.routes_parcel.airspace_graph = airspace_graph
 
         # self._terminals: List[HexCell] = self._get_terminals()
 
@@ -69,12 +65,19 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
         # combine local terminals with terminals from vertiports
         vertiports = self._outpost.vertiports_parcel.vertiports
         grid = self._outpost.grid_parcel.grid
+        print("vertiports no outpost!")
+        print(vertiports)
         return grid.get_cell_from_cartesians(vertiports)
 
     def run(self) -> None:
 
         vertiports = self._get_vertiports()
-        airspace_graph = self._outpost.routes_parcel.airspace_graph
+        print("VERTIPORTS DO RUN!")
+        print(vertiports)
+        airspace_graph = self.builder.build_airspace_graph()
+
+        with self._outpost:
+            self._outpost.routes_parcel.airspace_graph = airspace_graph
         parameters = RoutingParameters.from_yaml_parcel(self._outpost.yaml_parcel)
 
         # paths: List[List[HexCell]] = Routing.compute_terminal_paths(
@@ -83,6 +86,8 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
         #    connectivity_mode=parameters.connectivity_mode,
         #    k=parameters.k_neighbors,
         # )
+
+        print(f"conectivity mode: {parameters.connectivity_mode}")
 
         paths: List[List[HexCell]] = interconnect(
             terminals=vertiports,

@@ -25,8 +25,10 @@ def _build_single_linkage_hac_pairs(
 ) -> set[tuple[HexCell, HexCell]]:
 
     if len(terminals) <= 1:
+        print("somente 1 terminal")
         return set()
 
+    print("mais de 1 terminal.")
     graph = ig.Graph()
     graph.add_vertices(len(terminals))
 
@@ -59,6 +61,7 @@ def _build_single_linkage_hac_pairs(
         pair = (a, b) if id(a) < id(b) else (b, a)
         pairs.add(pair)
 
+    print(f"pairs:{pairs}")
     return pairs
 
 
@@ -81,7 +84,7 @@ def _build_pairs(
         )
 
     elif connectivity_mode == "Single-Linkage_HAC":
-
+        print("Single-Linkage_HAC")
         return _build_single_linkage_hac_pairs(
             terminals,
         )
@@ -110,6 +113,8 @@ def interconnect(
     )
 
     paths = _build_paths(pairs=pairs, airspace_graph=airspace_graph)
+
+    print(f"paths:{paths}")
     return paths
 
 
@@ -117,11 +122,13 @@ def _build_paths(
     pairs: set[tuple[HexCell, HexCell]],
     airspace_graph: AirspaceGraphPack,
 ):
+    print(f"airspace graph: {airspace_graph}")
     paths: List[List[HexCell]] = []
     weights: list[float] = Routing.obtain_edges_weights(airspace_graph)
 
     for a, b in pairs:
         if a not in airspace_graph._cell_to_vid or b not in airspace_graph._cell_to_vid:
+            print(f"pairs not in airspace grapf: a{a}, b{b}")
             continue
 
         cost, cells = Routing.shortest_path(airspace_graph, a, b, weights)
@@ -130,4 +137,5 @@ def _build_paths(
         if cells is not None and not math.isinf(cost):
             paths.append(cells)
 
+    print(f"paths mounted: {paths}")
     return paths

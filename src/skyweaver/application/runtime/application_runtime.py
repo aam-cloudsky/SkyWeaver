@@ -67,7 +67,8 @@ class ApplicationRuntime:
         self.units.domain.run()
         self.units.alignment.run()
         self.units.grid.run()
-        self.units.restriction.run()
+        # self.units.restriction.run()
+
         self.units.routes.run()
 
     # ======================================================
@@ -101,7 +102,7 @@ class ApplicationRuntime:
         pallet: dict[type[Parcel], Parcel],
     ) -> None:
 
-        scene = self._materializer.materialize(pallet)
+        scene = self._materializer.materialize(pallet, self._outpost)
 
         self._scene = scene
 
