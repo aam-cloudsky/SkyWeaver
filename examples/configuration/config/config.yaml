@@ -1,7 +1,7 @@
 sources:
-  heliports_path: "./data/heliport.geojson"
+  heliports_path: "./data/heliports.geojson"
   vertiports_path: ""
-  
+
 domain:
   padding: 1000.0
   margin: 2000.0

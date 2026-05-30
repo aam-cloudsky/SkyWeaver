@@ -27,21 +27,39 @@ def average_path_length(
 def betweenness(
     g1: RoutesGraphPack,
 ) -> Dict[HexCell, int]:
+
     if g1.vcount() == 0:
         return {}
 
-    paths = g1.paths
-    if not paths:
-        return {}
+    graph = g1.graph
 
     centrality = Counter()
-    for path in paths:
-        if len(path) <= 2:
-            continue
-        for cell_mid in path[1:-1]:
-            centrality[cell_mid] += 1
 
-    if not centrality:
-        return {}
+    vertices = list(range(graph.vcount()))
+
+    for i, source in enumerate(vertices):
+
+        for target in vertices[i + 1 :]:
+
+            vpaths = graph.get_shortest_paths(
+                source,
+                to=target,
+                output="vpath",
+            )
+
+            if not vpaths or not vpaths[0]:
+                continue
+
+            vpath = vpaths[0]
+
+            if len(vpath) <= 2:
+                continue
+
+            for vid in vpath[1:-1]:
+
+                cell = g1.get_cell(vid)
+
+                if cell is not None:
+                    centrality[cell] += 1
 
     return dict(centrality)

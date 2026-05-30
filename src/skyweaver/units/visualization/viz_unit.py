@@ -21,6 +21,7 @@ from skyweaver.units.analysis.metrics import average_path_length, betweenness
 from skyweaver.units.hexgrid.structure.hexcell import HexCell
 from skyweaver.units.hexgrid.structure.hexgrid import HexGrid
 from skyweaver.units.visualization.logistics.viz_outpost import VizOutpost
+import math
 
 
 class VisualizationUnit(OperationalUnit[VizOutpost]):
@@ -33,6 +34,12 @@ class VisualizationUnit(OperationalUnit[VizOutpost]):
         basemap_provider: Optional[Any] = None,
         basemap_alpha: float = 1.0,
         basemap_zorder: int = 0,
+        show_grid: bool = True,
+        show_routes: bool = True,
+        show_apl: bool = True,
+        show_betweenness: bool = False,
+        show_heliports: bool = True,
+        show_vertiports: bool = True,
     ):
         if outpost is None:
             outpost = VizOutpost()
@@ -50,6 +57,14 @@ class VisualizationUnit(OperationalUnit[VizOutpost]):
         self._basemap_alpha = basemap_alpha
         self._basemap_zorder = basemap_zorder
         self._basemap_drawn = False
+
+        # Visualization toggles
+        self._show_grid = show_grid
+        self._show_routes = show_routes
+        self._show_apl = show_apl
+        self._show_betweenness = show_betweenness
+        self._show_heliports = show_heliports
+        self._show_vertiports = show_vertiports
 
         self._heliports_scatter = self._ax.scatter(
             [], [], c="red", s=110, zorder=7, label="Heliports"
@@ -96,13 +111,41 @@ class VisualizationUnit(OperationalUnit[VizOutpost]):
 
         routes_graph = self._outpost.routes_parcel.routes_graph
 
-        self._update_grid(grid)
-        self._update_vertiports(vertiports_cells)
-        self._update_heliports(heliports_cells)
-        self._update_routes(routes_graph)
+        if self._show_grid:
+            self._update_grid(grid)
+
+        if self._show_vertiports:
+            self._update_vertiports(vertiports_cells)
+        else:
+            self._vertiports_scatter.set_offsets(np.empty((0, 2)))
+
+        if self._show_heliports:
+            self._update_heliports(heliports_cells)
+        else:
+            self._heliports_scatter.set_offsets(np.empty((0, 2)))
+
+        if self._show_routes:
+            self._update_routes(routes_graph)
+
         self._update_metrics(routes_graph)
         self._ax.legend()
         self._fig.canvas.draw_idle()
+
+    def _marker_area_from_cell(
+        self, cell: HexCell, radius_factor: float = 0.25
+    ) -> float:
+        grid = self._outpost.grid_parcel.grid
+        cx, cy = self._cell_center_xy(grid, cell)
+
+        radius_data = cell.size * radius_factor
+
+        x0, y0 = self._ax.transData.transform((cx, cy))
+        x1, y1 = self._ax.transData.transform((cx + radius_data, cy))
+
+        radius_pixels = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
+        radius_points = radius_pixels * 72.0 / self._fig.dpi
+
+        return math.pi * (radius_points**2)
 
     def show(self) -> None:
         self._fig.canvas.draw_idle()
@@ -203,20 +246,24 @@ class VisualizationUnit(OperationalUnit[VizOutpost]):
 
     def _update_metrics(self, routes_graph) -> None:
         # APL
-        if routes_graph:
+        if self._show_apl and routes_graph:
             apl_result = average_path_length(routes_graph)
             self._apl_text.set_text(f"APL: {apl_result:.3f}")
+            self._apl_text.set_visible(True)
         else:
-            self._apl_text.set_text("APL: 0.0")
+            self._apl_text.set_visible(False)
 
         # Betweenness por célula
-        if routes_graph:
+        if self._show_betweenness and routes_graph:
             grid = self._outpost.grid_parcel.grid
             betw_result = betweenness(routes_graph)
+
             for cell_v, value in betw_result.items():
                 if value == 0:
                     continue
+
                 x, y = self._cell_center_xy(grid, cell_v)
+
                 txt = self._ax.text(
                     x,
                     y,
@@ -275,8 +322,8 @@ class VisualizationUnit(OperationalUnit[VizOutpost]):
                 )
                 self._ax.add_patch(patch)
                 self._grid_patches[cell] = patch
-            else:
-                patch.set_facecolor("lightcoral" if not cell.is_traversable else "none")
+            # else:
+            patch.set_facecolor("lightcoral" if not cell.is_traversable else "none")
 
         self._fig.canvas.draw_idle()
 
@@ -285,10 +332,22 @@ class VisualizationUnit(OperationalUnit[VizOutpost]):
         pts = self._cells_to_offsets(grid, heliports_cells)
         self._heliports_scatter.set_offsets(pts)
 
+        if heliports_cells:
+            area = self._marker_area_from_cell(heliports_cells[0], radius_factor=0.22)
+            self._heliports_scatter.set_sizes([area] * len(heliports_cells))
+        else:
+            self._heliports_scatter.set_sizes([])
+
     def _update_vertiports(self, vertiports_cells: List[HexCell]) -> None:
         grid = self._outpost.grid_parcel.grid
         pts = self._cells_to_offsets(grid, vertiports_cells)
         self._vertiports_scatter.set_offsets(pts)
+
+        if vertiports_cells:
+            area = self._marker_area_from_cell(vertiports_cells[0], radius_factor=0.22)
+            self._vertiports_scatter.set_sizes([area] * len(vertiports_cells))
+        else:
+            self._vertiports_scatter.set_sizes([])
 
     def _handle_click(self, event) -> None:
         if event.inaxes != self._ax or event.xdata is None or event.ydata is None:

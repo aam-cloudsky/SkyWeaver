@@ -7,18 +7,22 @@ from shapely.geometry import Point
 
 class LocalFrame:
 
-    def __init__(self, domain_center: ProjectedCoordinate):
-        self.crs = domain_center.crs
-        self.origin_x = domain_center.x
-        self.origin_y = domain_center.y
+    # def __init__(self, domain_center: ProjectedCoordinate):
+    #    self.crs = domain_center.crs
+    #    self.origin_x = domain_center.x
+    #    self.origin_y = domain_center.y
 
-    def to_local(self, gdf: gpd.GeoDataFrame) -> List[Point]:
+    @staticmethod
+    def geo_coord_to_local(
+        gdf: gpd.GeoDataFrame, domain_center: ProjectedCoordinate
+    ) -> List[Point]:
 
-        if gdf.crs != self.crs:
-            gdf_metric = gdf.to_crs(self.crs)
-        else:
-            gdf_metric = gdf
+        # if gdf.crs != domain_center.crs:
+        #    gdf_metric = gdf.to_crs(domain_center.crs)
+        # else:
+        #    gdf_metric = gdf
 
+        gdf_metric = gdf.to_crs(domain_center.crs)
         pois: List[Point] = []
 
         for geom in gdf_metric.geometry:
@@ -30,21 +34,24 @@ class LocalFrame:
 
             pois.append(
                 Point(
-                    geom.x - self.origin_x,
-                    geom.y - self.origin_y,
+                    geom.x - domain_center.x,
+                    geom.y - domain_center.y,
                 )
             )
 
         return pois
 
     # Local frame → Domain CRS
-    def to_crs(self, pois: List[Point]) -> gpd.GeoDataFrame:
+    @staticmethod
+    def local_to_geo_coord(
+        pois: List[Point], domain_center: ProjectedCoordinate
+    ) -> gpd.GeoDataFrame:
 
         converted_pois = []
         for poi in pois:
-            x = poi.x + self.origin_x
-            y = poi.y + self.origin_y
+            x = poi.x + domain_center.x
+            y = poi.y + domain_center.y
             converted_pois.append(Point(x, y))
 
-        gdf = gpd.GeoDataFrame(geometry=converted_pois, crs=self.crs)
+        gdf = gpd.GeoDataFrame(geometry=converted_pois, crs=domain_center.crs)
         return gdf

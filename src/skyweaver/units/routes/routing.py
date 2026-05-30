@@ -93,6 +93,112 @@ class Routing:
     STEP_WEIGHT = 1
 
     @staticmethod
+    def terminal_distance(a: HexCell, b: HexCell) -> float:
+        return (a.coord - b.coord).norm()
+
+    @staticmethod
+    def build_knn_pairs(
+        terminals: list[HexCell],
+        k: int,
+    ) -> set[tuple[HexCell, HexCell]]:
+        pairs: set[tuple[HexCell, HexCell]] = set()
+
+        for a in terminals:
+
+            neighbors = sorted(
+                [b for b in terminals if b != a],
+                key=lambda b: Routing.terminal_distance(a, b),
+            )
+
+            for b in neighbors[:k]:
+
+                pair = (a, b) if id(a) < id(b) else (b, a)
+                pairs.add(pair)
+
+        return pairs
+
+    @staticmethod
+    def ensure_connected_pairs(
+        terminals: list[HexCell],
+        pairs: set[tuple[HexCell, HexCell]],
+    ) -> set[tuple[HexCell, HexCell]]:
+
+        adjacency: dict[HexCell, set[HexCell]] = {t: set() for t in terminals}
+
+        for a, b in pairs:
+            adjacency[a].add(b)
+            adjacency[b].add(a)
+
+        visited: set[HexCell] = set()
+        components: list[set[HexCell]] = []
+
+        def dfs(start: HexCell) -> set[HexCell]:
+
+            stack = [start]
+            component: set[HexCell] = set()
+
+            while stack:
+
+                current = stack.pop()
+
+                if current in visited:
+                    continue
+
+                visited.add(current)
+                component.add(current)
+
+                for neighbor in adjacency[current]:
+                    if neighbor not in visited:
+                        stack.append(neighbor)
+
+            return component
+
+        for terminal in terminals:
+            if terminal not in visited:
+                components.append(dfs(terminal))
+
+        while len(components) > 1:
+
+            best_distance = float("inf")
+            best_pair = None
+            best_i = -1
+            best_j = -1
+
+            for i in range(len(components)):
+                for j in range(i + 1, len(components)):
+
+                    for a in components[i]:
+                        for b in components[j]:
+
+                            distance = Routing.terminal_distance(a, b)
+
+                            if distance < best_distance:
+                                best_distance = distance
+                                best_pair = (a, b)
+                                best_i = i
+                                best_j = j
+
+            if best_pair is None:
+                break
+
+            a, b = best_pair
+
+            pair = (a, b) if id(a) < id(b) else (b, a)
+            pairs.add(pair)
+
+            adjacency[a].add(b)
+            adjacency[b].add(a)
+
+            visited.clear()
+            components = []
+
+            for terminal in terminals:
+                if terminal not in visited:
+                    components.append(dfs(terminal))
+
+        return pairs
+
+    @staticmethod
     def edge_weight(a: HexCell, b: HexCell) -> float:
         return Routing.STEP_WEIGHT + 0.5 * (a.cost + b.cost)
 
@@ -155,6 +261,8 @@ class Routing:
     def compute_terminal_paths(
         airspace_graph: AirspaceGraphPack,
         terminals: Iterable[HexCell],
+        connectivity_mode: str = "all_pairs",
+        k: int = 2,
     ) -> List[List[HexCell]]:
         """
         Compute shortest paths between all terminal (AirspaceGraphPack G0 → paths).
@@ -164,7 +272,28 @@ class Routing:
         """
         paths: List[List[HexCell]] = []
         weights: list[float] = Routing.obtain_edges_weights(airspace_graph)
-        for a, b in combinations(terminals, 2):
+
+        terminal_list = list(terminals)
+
+        if connectivity_mode == "all_pairs":
+            pairs = combinations(terminal_list, 2)
+
+        elif connectivity_mode == "knn":
+            print(f"connectivity mode knn, {k}")
+            pairs = Routing.build_knn_pairs(
+                terminal_list,
+                k,
+            )
+
+            # pairs = Routing.ensure_connected_pairs(
+            #    terminal_list,
+            #    pairs,
+            # )
+
+        else:
+            raise ValueError(f"Unknown connectivity_mode: {connectivity_mode}")
+
+        for a, b in pairs:
             if (
                 a not in airspace_graph._cell_to_vid
                 or b not in airspace_graph._cell_to_vid

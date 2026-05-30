@@ -13,3 +13,10 @@ class GridParcel(Parcel):
     # cannot be HexGrid due to circular imports.
     grid: HexGrid = field(default_factory=HexGrid)
     cell_size: float = field(default=100.0)
+
+    def serialize(self):
+
+        return {
+            "cell_size": self.grid._cell_size,
+            "orientation": self.grid.projection.orientation.name,
+        }

@@ -16,11 +16,11 @@ class Domain:
         operational_bounds: Bounds,
         visualization_bounds: Bounds,
     ):
-        self._center = center
-        self._operational_bounds = operational_bounds
-        self._visualization_bounds = visualization_bounds
+        self._center: ProjectedCoordinate = center
+        self._operational_bounds: Bounds = operational_bounds
+        self._visualization_bounds: Bounds = visualization_bounds
 
-        self._local_frame = LocalFrame(center)
+        # self._local_frame = LocalFrame(center)
 
     @property
     def center(self) -> ProjectedCoordinate:
@@ -38,12 +38,39 @@ class Domain:
     def crs(self):
         return self._center.crs
 
-    def project_to_domain(self, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    def reproject_to_domain_crs(self, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         return gdf.to_crs(self.crs)
 
     def to_local(self, gdf: gpd.GeoDataFrame) -> list[Point]:
-        gdf_metric = self.project_to_domain(gdf)
-        return self._local_frame.to_local(gdf_metric)
+        """
+        Convert geographic coordinates into the domain-local continuous frame. This transformation projects geometries from an external CRS into the domain CRS and then expresses them relative to the domain-centered local frame.
+        The resulting coordinates are still continuous cartesian coordinates.
+        They are NOT discretized hexagonal coordinates.
+        This local continuous space is later used by the hexagonal grid system to perform:
+        - hex cell projection;
+        - neighborhood operations;
+        - routing;
+        - spatial discretization.
+        Coordinate spaces involved:
+            Geographic CRS
+                ↓
+            Domain CRS
+                ↓
+            Local continuous cartesian frame
+        """
+
+        return LocalFrame.geo_coord_to_local(gdf, domain_center=self.center)
+
+    def local_to_geo_coord(self, points_local: list[Point]) -> gpd.GeoDataFrame:
+        """
+        Convert local continuous cartesian coordinates back into geographic space.
+        The input coordinates are assumed to belong to the domain-local
+        continuous frame centered around the operational domain origin.
+        This operation reverses the local-frame transformation and returns
+        geometries expressed in the domain CRS.
+        """
+
+        return LocalFrame.local_to_geo_coord(points_local, self.center)
 
     def contains_local_point(self, point: Point) -> bool:
         b = self._operational_bounds

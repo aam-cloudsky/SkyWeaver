@@ -9,7 +9,5 @@ class IntentDispatcher:
     def dispatch(self, intent):
         handler = self._services.get(type(intent))
         if not handler:
-            raise RuntimeError(
-                f"No handler registered for {type(intent).__name__}"
-            )
+            raise RuntimeError(f"No handler registered for {type(intent).__name__}")
         handler(intent)

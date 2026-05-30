@@ -183,3 +183,9 @@ cython_debug/
 
 /data/geojson/*.geojson
 *.geojson
+*.csv
+/.vscode
+data/.DS_Store
+.DS_Store
+/data
+examples/.DS_Store

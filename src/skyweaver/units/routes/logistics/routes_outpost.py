@@ -12,6 +12,7 @@ from skyweaver.units.geodata_domain_alignment.logistics.vertiports_parcel import
 )
 from skyweaver.units.hexgrid.logistics.grid_parcel import GridParcel
 from skyweaver.units.routes.logistics.routes_parcel import RoutesParcel
+from skyweaver.units.yaml_loader.logistics.yaml_parcel import YAMLParcel
 
 
 @dataclass
@@ -47,3 +48,8 @@ class RoutesOutpost(Outpost):
     # cluster_parcel: ClusterParcel = field(
     #    default_factory=ClusterParcel, metadata={"role": ParcelRole.CONSUMED}
     # )
+
+    yaml_parcel: YAMLParcel = field(
+        default_factory=YAMLParcel,
+        metadata={"role": ParcelRole.CONSUMED},
+    )

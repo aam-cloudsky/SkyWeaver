@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
-from examples.view.hex_matplotlib_ihm import HexMouseEvent
+from skyweaver.application.events.hex_mouse_event import HexMouseEvent
 from skyweaver.application.intent import (
     HexIntent,
     ToggleRestriction,

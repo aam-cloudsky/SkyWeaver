@@ -8,6 +8,11 @@ from skyweaver.units.hexgrid.structure.hexcell import HexCell
 from skyweaver.units.routes.graph.graph_builder import GraphBuilder
 from skyweaver.units.routes.logistics.routes_outpost import RoutesOutpost
 from skyweaver.units.routes.routing import Routing
+from skyweaver.units.routes.parameters.routing_parameters import RoutingParameters
+
+from skyweaver.units.routes.connectivity.connectivity_builder import (
+    interconnect,
+)
 
 
 class RoutesUnit(OperationalUnit[RoutesOutpost]):
@@ -70,8 +75,22 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
 
         vertiports = self._get_vertiports()
         airspace_graph = self._outpost.routes_parcel.airspace_graph
-        paths: List[List[HexCell]] = Routing.compute_terminal_paths(
-            airspace_graph, vertiports
+        parameters = RoutingParameters.from_yaml_parcel(self._outpost.yaml_parcel)
+
+        # paths: List[List[HexCell]] = Routing.compute_terminal_paths(
+        #    airspace_graph,
+        #    vertiports,
+        #    connectivity_mode=parameters.connectivity_mode,
+        #    k=parameters.k_neighbors,
+        # )
+
+        paths: List[List[HexCell]] = interconnect(
+            terminals=vertiports,
+            airspace_graph=airspace_graph,
+            connectivity_mode=parameters.connectivity_mode,
+            info={
+                "k": parameters.k_neighbors,
+            },
         )
 
         routes_graph = self.builder.build_routes_graph(paths)

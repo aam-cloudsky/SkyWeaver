@@ -100,8 +100,10 @@ class DomainBuilder:
         )
         gdf_metric = gdf.to_crs(center.crs)
         print("Reprojected GeoDataFrame to domain CRS.")
-        local_frame = LocalFrame(center)
-        local_points = local_frame.to_local(gdf_metric)
+        local_points = LocalFrame.geo_coord_to_local(
+            gdf_metric,
+            domain_center=center,
+        )
 
         operational, visualization = self.compute_bounds(local_points, padding, margin)
         print(

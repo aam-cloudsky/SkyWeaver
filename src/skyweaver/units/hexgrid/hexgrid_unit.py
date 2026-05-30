@@ -12,11 +12,11 @@ class HexGridUnit(OperationalUnit[GridOutpost]):
 
         super().__init__(outpost or GridOutpost())
 
+    def run(self):
+
         self._parameters: GridParameters = GridParameters.from_yaml_parcel(
             self._outpost.yaml_parcel
         )
-
-    def run(self):
 
         domain_parcel = self._outpost.domain_parcel
         domain = domain_parcel.domain  # ✅ extract Domain object

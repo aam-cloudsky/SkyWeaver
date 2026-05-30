@@ -42,7 +42,8 @@ class SourcesUnit(OperationalUnit[SourcesOutpost]):
         p = pathlib.Path(path)
 
         if not p.is_absolute():
-            p = (pathlib.Path.cwd() / p).resolve()
+            base_dir = self._outpost.yaml_parcel.config_dir
+            p = (base_dir / p).resolve()
 
         if not p.exists():
             print(f"[Warning] Path does not exist: {p}")

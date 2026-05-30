@@ -17,7 +17,7 @@ class SourcesOutpost(Outpost):
     )
 
     yaml_parcel: YAMLParcel = field(
-        default_factory=YAMLParcel, metadata={"role": ParcelRole.PRODUCED}
+        default_factory=YAMLParcel, metadata={"role": ParcelRole.CONSUMED}
     )
     # from skyweaver.units.sources.logistics.vertiports_parcel import VertiportsParcel
     # from skyweaver.units.domain.logistics.domain_parcel import DomainParcel
