@@ -60,7 +60,11 @@ class Node:
             self._outpost.schema().descriptors_by_role(Role.PRODUCED).keys()
         )
 
-        self._outpost.start()
+        try:
+            self._outpost.start()
+        except Exception:
+            self.close()
+            raise
 
     # ======================================================
     # Invalidation Propagation Mechanism
@@ -122,6 +126,11 @@ class Node:
 
     def reset_output(self) -> None:
         self._output_result = _UNSET
+
+    def close(self) -> None:
+        if hasattr(self, "_outpost"):
+            self.logistics.depot.sentinel.unregister(type(self._outpost))
+            self._outpost.close()
 
     # ======================================================
     # Runtime

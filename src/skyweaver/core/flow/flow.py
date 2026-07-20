@@ -104,13 +104,20 @@ class Flow(Generic[P, R]):
             logistics=self.logistics,
         )
 
-        self._nodes = {
-            definition.name: factory.create(
-                flow_id=self._definition.identity,
-                definition=definition,
-            )
-            for definition in self._definition.definitions
-        }
+        created_nodes: dict[str, Node] = {}
+
+        try:
+            for definition in self._definition.definitions:
+                created_nodes[definition.name] = factory.create(
+                    flow_id=self._definition.identity,
+                    definition=definition,
+                )
+        except Exception:
+            for node in reversed(tuple(created_nodes.values())):
+                node.close()
+            raise
+
+        self._nodes = created_nodes
 
         self._materialized = True
 
