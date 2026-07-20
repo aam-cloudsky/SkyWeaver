@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel.parcel import Parcel
 
 
 @dataclass(frozen=True)

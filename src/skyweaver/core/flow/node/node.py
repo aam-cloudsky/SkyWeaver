@@ -6,6 +6,7 @@ from skyweaver.core.flow.node.node_definition import (
     NodeKind,
 )
 from skyweaver.core.flow.node.propagation_policy import PropagationPolicy
+from skyweaver.core.flow.errors import MissingDependencyError
 from skyweaver.core.identifier.identifier import FlowId, NodeId
 from skyweaver.core.logistics.endpoint.outpost_builder import OutpostBuilder
 from skyweaver.core.logistics.endpoint.role import Role
@@ -79,11 +80,16 @@ class Node:
         match self.definition.propagation_policy:
 
             case PropagationPolicy.ANY_DEPENDENCY_CHANGED:
-                return any(status.any_dependencies_dirty(p) for p in self._produced)
+                return any(
+                    status.any_dependencies_dirty(p)
+                    and self._all_required_dependencies_available(p)
+                    for p in self._produced
+                )
 
             case PropagationPolicy.ALL_DEPENDENCIES_CHANGED:
                 return all(
-                    self._all_required_dependencies_dirty(status, produced)
+                    self._all_required_dependencies_available(produced)
+                    and self._all_required_dependencies_dirty(status, produced)
                     for produced in self._produced
                 )
 
@@ -101,7 +107,7 @@ class Node:
     ) -> bool:
         descriptor = self._outpost.schema().descriptor(produced)
         dependency_flags = status.dependency_flags.get(produced, {})
-        required_dependencies = descriptor.depends_on - descriptor.optional_depends_on
+        required_dependencies = descriptor.depends_on
 
         if not any(flag.name == "DIRTY" for flag in dependency_flags.values()):
             return False
@@ -111,6 +117,20 @@ class Node:
             and dependency_flags[dependency].name == "DIRTY"
             for dependency in required_dependencies
         )
+
+    def _all_required_dependencies_available(
+        self,
+        produced: type,
+    ) -> bool:
+        descriptor = self._outpost.schema().descriptor(produced)
+        required_dependencies = descriptor.depends_on
+
+        for dependency in required_dependencies:
+            dependency_descriptor = self._outpost.schema().descriptor(dependency)
+            if getattr(self._outpost, dependency_descriptor.field_name) is None:
+                return False
+
+        return True
 
     def _on_status_changed(
         self,
@@ -140,7 +160,11 @@ class Node:
     def output_result(self):
 
         if self._output_result is _UNSET:
-            return None
+            raise MissingDependencyError(
+                flow_name=self.flow_id.name,
+                node_name=self.name,
+                missing_dependencies=self._missing_required_dependency_names(),
+            )
 
         return self._output_result
 
@@ -212,6 +236,17 @@ class Node:
             arguments.append(getattr(self._outpost, descriptor.field_name))
 
         return arguments
+
+    def _missing_required_dependency_names(self) -> list[str]:
+        missing_dependencies: list[str] = []
+
+        for _, parcel_type in self.definition.description.consumed_parameters:
+            descriptor = self._outpost.schema().descriptor(parcel_type)
+
+            if getattr(self._outpost, descriptor.field_name) is None:
+                missing_dependencies.append(parcel_type.__name__)
+
+        return missing_dependencies
 
     def _write_function_result(
         self,

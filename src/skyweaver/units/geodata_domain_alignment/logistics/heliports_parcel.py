@@ -5,7 +5,7 @@
 from dataclasses import dataclass, field
 from typing import List, Tuple
 from shapely.geometry import Point
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel.parcel import Parcel
 
 
 @dataclass

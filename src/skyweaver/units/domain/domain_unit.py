@@ -34,7 +34,6 @@ class DomainUnit(OperationalUnit[DomainOutpost]):
         if not layers:
             raise ValueError("DomainUnit requires at least one spatial layer.")
 
-        print(f"Collected {len(layers)} layers for domain construction.")
         parameters = DomainParameters.from_yaml_parcel(self._outpost.yaml_parcel)
         builder = DomainBuilder(projection_policy=AEQDProjectionPolicy())
 

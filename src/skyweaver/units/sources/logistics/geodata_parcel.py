@@ -2,7 +2,7 @@
 
 
 from dataclasses import dataclass, field
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel.parcel import Parcel
 
 from geopandas import GeoDataFrame
 

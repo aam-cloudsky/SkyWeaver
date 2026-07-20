@@ -1,15 +1,11 @@
 from collections import defaultdict
 from dataclasses import dataclass, fields, field
-from types import UnionType
 from typing import (
     ClassVar,
     Generic,
     Optional,
     TypeVar,
-    Union,
     cast,
-    get_args,
-    get_origin,
     get_type_hints,
 )
 
@@ -161,9 +157,7 @@ class SchemaBuilder:
         annotations = get_type_hints(cls)
 
         for dataclass_field in fields(cls):
-            parcel_type, _ = cls._resolve_parcel_annotation(
-                annotations.get(dataclass_field.name),
-            )
+            parcel_type = cls._resolve_parcel_annotation(annotations.get(dataclass_field.name))
 
             if parcel_type is None:
                 continue
@@ -193,28 +187,9 @@ class SchemaBuilder:
 
         annotations = get_type_hints(cls)
         consumed_types = types_by_role.get(Role.CONSUMED, set())
-        optional_consumed_types: set[ParcelType] = set()
 
         for dataclass_field in fields(cls):
-            parcel_type, is_optional = cls._resolve_parcel_annotation(
-                annotations.get(dataclass_field.name),
-            )
-
-            if parcel_type is None:
-                continue
-
-            role = dataclass_field.metadata.get(
-                "role",
-                Role.UNDEFINED,
-            )
-
-            if role == Role.CONSUMED and is_optional:
-                optional_consumed_types.add(parcel_type)
-
-        for dataclass_field in fields(cls):
-            parcel_type, is_optional = cls._resolve_parcel_annotation(
-                annotations.get(dataclass_field.name),
-            )
+            parcel_type = cls._resolve_parcel_annotation(annotations.get(dataclass_field.name))
 
             if parcel_type is None:
                 continue
@@ -228,10 +203,6 @@ class SchemaBuilder:
                 type_=parcel_type,
                 field_name=dataclass_field.name,
                 depends_on=(set(consumed_types) if role == Role.PRODUCED else set()),
-                is_optional=is_optional,
-                optional_depends_on=(
-                    set(optional_consumed_types) if role == Role.PRODUCED else set()
-                ),
             )
 
         return descriptors
@@ -290,8 +261,6 @@ class SchemaBuilder:
             )
 
             if dependency is None:
-                if dependency_descriptor.is_optional:
-                    continue
                 raise RuntimeError(...)
 
             dependencies[dependency_type] = dependency
@@ -318,37 +287,17 @@ class SchemaBuilder:
     @staticmethod
     def _resolve_parcel_annotation(
         annotation: object | None,
-    ) -> tuple[Optional[ParcelType], bool]:
+    ) -> Optional[ParcelType]:
         if annotation is None:
-            return None, False
-
-        is_optional = False
-        origin = get_origin(annotation)
-
-        if origin in (
-            Union,
-            UnionType,
-        ):
-
-            non_none_types = [
-                argument
-                for argument in get_args(annotation)
-                if argument is not type(None)
-            ]
-
-            if len(non_none_types) != 1:
-                return None, False
-
-            annotation = non_none_types[0]
-            is_optional = True
+            return None
 
         if not isinstance(annotation, type):
-            return None, False
+            return None
 
         if not issubclass(annotation, Parcel):
-            return None, False
+            return None
 
-        return annotation, is_optional
+        return annotation
 
     def parcels_by_role(
         self,

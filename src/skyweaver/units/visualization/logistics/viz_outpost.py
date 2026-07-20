@@ -1,8 +1,8 @@
 # src/skyweaver/discretization/grid/hexgrid/hexgrid_outpost.py
 
 from dataclasses import dataclass, field
-from skyweaver.core.logistics.outpost import Outpost
-from skyweaver.core.logistics.parcel import ParcelRole
+from skyweaver.core.logistics.endpoint.outpost import Outpost
+from skyweaver.core.logistics.parcel.parcel import ParcelRole
 from skyweaver.units.clustering.logistics.cluster_parcel import ClusterParcel
 from skyweaver.units.domain.logistics.domain_parcel import DomainParcel
 from skyweaver.units.geodata_domain_alignment.logistics.heliports_parcel import (

@@ -5,7 +5,7 @@ from skyweaver.core.bus.protocol.message_context import MessageContext
 from skyweaver.core.bus.protocol.message_handler import MessageHandler
 from skyweaver.core.bus.protocol.base_message import BaseMessage
 from skyweaver.core.bus.enums.topics_enum import TopicsEnum
-from skyweaver.core.bus.runtime.publisher_manager import (
+from skyweaver.core.bus.publisher_manager import (
     PublisherID,
     PublisherReservedIDs,
 )
@@ -66,5 +66,6 @@ class Broker:
             except Exception as e:
                 # print(f"[BROKER][WARN] Subscriber {to_id} failed: {e}")
                 delivered = False
+                raise
 
         return delivered

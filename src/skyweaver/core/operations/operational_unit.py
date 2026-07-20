@@ -2,8 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Generic, Optional, Type, TypeVar, get_args, get_origin
 
-from skyweaver.core.logistics.outpost import Outpost
-
+from skyweaver.core.logistics.endpoint.outpost import Outpost
 
 TOutpost = TypeVar("TOutpost", bound=Outpost)
 

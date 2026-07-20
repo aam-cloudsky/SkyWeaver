@@ -9,7 +9,7 @@ from shapely.geometry import LineString
 
 
 from skyweaver.application.runtime.logistics.runtime_outpost import RuntimeOutpost
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel.parcel import Parcel
 from skyweaver.units.domain.frame.domain import Domain
 from skyweaver.units.domain.logistics.domain_parcel import DomainParcel
 from skyweaver.units.geodata_domain_alignment.logistics.vertiports_parcel import (
@@ -164,7 +164,6 @@ class SceneMaterializer:
                 layers.append(self._build_vertiports_layer(parcel, outpost))
 
             if isinstance(parcel, RoutesParcel):
-                print(parcel)
                 layers.append(self._build_routes_layer(parcel, outpost))
 
         return SceneSnapshot(layers=layers)
@@ -217,12 +216,8 @@ class SceneMaterializer:
 
         domain = runtime_outpost.domain_parcel.domain
         grid = runtime_outpost.grid_parcel.grid
-        print(
-            f"[SceneMaterializer] incoming route paths: {len(routes_parcel.routes_graph.paths)}"
-        )
 
         for route_index, path in enumerate(routes_parcel.routes_graph.paths):
-            print(f"[SceneMaterializer] path {route_index} cell count: {len(path)}")
 
             if len(path) < 2:
                 continue
@@ -233,10 +228,6 @@ class SceneMaterializer:
             coords = [
                 (point.x, point.y) for point in gdf.geometry if isinstance(point, Point)
             ]
-
-            print(
-                f"[SceneMaterializer] path {route_index} projected coords: {len(coords)}"
-            )
 
             if len(coords) < 2:
                 continue

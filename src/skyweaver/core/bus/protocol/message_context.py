@@ -2,11 +2,11 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 
-from skyweaver.core.bus.runtime.publisher_manager import (
+from skyweaver.core.bus.publisher_manager import (
     PublisherID,
     PublisherReservedIDs,
 )
-from skyweaver.core.bus.runtime.trace_id import TraceID
+from skyweaver.core.bus.observability.trace_id import TraceID
 
 
 @dataclass

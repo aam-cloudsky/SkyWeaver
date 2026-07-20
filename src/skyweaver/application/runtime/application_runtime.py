@@ -8,7 +8,7 @@ from skyweaver.application.runtime.materialization.scene_materializer import (
     SceneSnapshot,
 )
 from skyweaver.application.runtime.runtime_units import RuntimeUnits
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel.parcel import Parcel
 
 
 class ApplicationRuntime:

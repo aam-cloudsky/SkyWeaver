@@ -130,19 +130,37 @@ class Outpost(SchemaBuilder):
         bus: Bus,
     ) -> None:
         """
-        Builds the Outpost internal runtime state without starting synchronization.
+        Reactive configuration unit synchronized via Depot.
 
-        This method intentionally performs only local initialization:
-        field setup, state flags, identity creation, status manager creation, and
-        port installation.
+        - Declares Parcels as dataclass fields
+        - CONSUMED Parcels are dependencies
+        - PRODUCED Parcels are published after transactions
 
-        External side effects such as Depot registration and initial pallet sync
-        must happen in a later explicit start phase. This two-phase initialization
-        ensures that the owning Node has time to attach runtime callbacks before
-        the Outpost begins receiving data from the Depot.
+        Field semantics
+        ---------------
+        Declared Parcel fields may temporarily hold `None`.
 
-        The main goal is to prevent early synchronization from happening while the
-        Node is still partially initialized.
+        In the current runtime, `None` means that the corresponding Parcel is
+        not currently available in this Outpost: it has not yet been received
+        from the Depot or has not yet been produced locally.
+
+        This is a runtime availability state, not a Parcel state.
+
+        Therefore, the system distinguishes between:
+
+        - `None`:
+          no Parcel is currently available for that field
+        - `Parcel(...)`:
+          a concrete Parcel instance is available
+        - a published Parcel with provenance/version:
+          a Parcel that has already been committed through the runtime
+
+        Absence is represented by `None`, not by a special empty Parcel instance.
+
+        NOTE:
+        This system assumes strong synchronization.
+        Delivery failure indicates incorrect usage or initialization order.
+        Local state is not rolled back on failed delivery.
         """
 
         self._setup_declared_fields()

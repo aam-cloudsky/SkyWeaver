@@ -1,10 +1,9 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel.parcel import Parcel
 from skyweaver.core.logistics.depot import Depot
-from skyweaver.core.logistics.outpost import Outpost, ParcelRole
-
+from skyweaver.core.logistics.endpoint.outpost import Outpost, ParcelRole
 
 # -------------------------------------------------
 # Parcels
@@ -26,62 +25,55 @@ class FuelEfficiency(Parcel):
     km_per_liter: float = 0.0
 
 
-
 # -------------------------------------------------
 # Outposts
 # -------------------------------------------------
 
+
 @dataclass
 class VehicleStateOutpost(Outpost):
     fuel: FuelLevel = field(
-        default_factory=FuelLevel,
-        metadata={"role": ParcelRole.MUTATES}
+        default_factory=FuelLevel, metadata={"role": ParcelRole.MUTATES}
     )
 
     distance: DistanceTraveled = field(
-        default_factory=DistanceTraveled,
-        metadata={"role": ParcelRole.MUTATES}
+        default_factory=DistanceTraveled, metadata={"role": ParcelRole.MUTATES}
     )
 
 
 @dataclass
 class FuelSensorOutpost(Outpost):
     fuel: FuelLevel = field(
-        default_factory=FuelLevel,
-        metadata={"role": ParcelRole.PRODUCED}
+        default_factory=FuelLevel, metadata={"role": ParcelRole.PRODUCED}
     )
 
 
 @dataclass
 class OdometerSensorOutpost(Outpost):
     distance: DistanceTraveled = field(
-        default_factory=DistanceTraveled,
-        metadata={"role": ParcelRole.PRODUCED}
+        default_factory=DistanceTraveled, metadata={"role": ParcelRole.PRODUCED}
     )
 
 
 @dataclass
 class EfficiencyCalculatorOutpost(Outpost):
     fuel: FuelLevel = field(
-        default_factory=FuelLevel,
-        metadata={"role": ParcelRole.CONSUMED}
+        default_factory=FuelLevel, metadata={"role": ParcelRole.CONSUMED}
     )
 
     distance: DistanceTraveled = field(
-        default_factory=DistanceTraveled,
-        metadata={"role": ParcelRole.CONSUMED}
+        default_factory=DistanceTraveled, metadata={"role": ParcelRole.CONSUMED}
     )
 
     efficiency: FuelEfficiency = field(
-        default_factory=FuelEfficiency,
-        metadata={"role": ParcelRole.PRODUCED}
+        default_factory=FuelEfficiency, metadata={"role": ParcelRole.PRODUCED}
     )
-
 
 
 # -------------------------------------------------
 # Test
 # -------------------------------------------------
+
 
 def print_state(vehicle, fuel_sensor, odometer, efficiency):
     print(
@@ -90,8 +82,7 @@ def print_state(vehicle, fuel_sensor, odometer, efficiency):
     )
     print(f"[FuelSensor]    fuel={fuel_sensor.fuel.liters:6.1f} L")
     print(f"[Odometer]      distance={odometer.distance.km:6.1f} km")
-    print(
-        f"[Efficiency]    km_per_liter={efficiency.efficiency.km_per_liter:6.2f}")
+    print(f"[Efficiency]    km_per_liter={efficiency.efficiency.km_per_liter:6.2f}")
     print()
 
 
@@ -136,7 +127,8 @@ def main():
         efficiency.efficiency = FuelEfficiency(
             km_per_liter=(
                 odometer.distance.km / fuel_sensor.fuel.liters
-                if fuel_sensor.fuel.liters > 0 else 0
+                if fuel_sensor.fuel.liters > 0
+                else 0
             )
         )
 
@@ -160,7 +152,8 @@ def main():
         efficiency.efficiency = FuelEfficiency(
             km_per_liter=(
                 odometer.distance.km / fuel_sensor.fuel.liters
-                if fuel_sensor.fuel.liters > 0 else 0
+                if fuel_sensor.fuel.liters > 0
+                else 0
             )
         )
 
@@ -178,5 +171,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

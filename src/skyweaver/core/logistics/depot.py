@@ -1,18 +1,21 @@
 # src/skyweaver/core/logistics/depot.py
 
 
-from typing import Any, Dict, Optional, Tuple, cast
-import threading
+from typing import Any, Dict, Optional, cast
+import warnings
+
+from skyweaver.core.bus.bus import Bus
 from skyweaver.core.bus.protocol.validity_message import ValidityMessage
-from skyweaver.core.bus.runtime.publisher_manager import PublisherReservedIDs
+from skyweaver.core.bus.publisher_manager import PublisherReservedIDs
+from skyweaver.core.identifier.identifier import DepotId
 from skyweaver.core.logistics.validity.sentinel import ValidityTransition, Sentinel
 
 from skyweaver.core.bus.protocol.base_message import BaseMessage
 
-from skyweaver.core.bus.runtime.hub import TopicsEnum, MessageContext
+from skyweaver.core.bus.enums.topics_enum import TopicsEnum
+from skyweaver.core.bus.protocol.message_context import MessageContext
 from skyweaver.core.logistics.lifecycle import LifecycleState, LifecycleStateMessage
-from skyweaver.core.bus.runtime.port import Port
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel.parcel import Parcel
 from skyweaver.core.logistics.depot_messages import (
     DepotGet,
     DepotRegistry,
@@ -21,60 +24,53 @@ from skyweaver.core.logistics.depot_messages import (
 )
 
 
-# ---------------------------------------------------------------------
-# Thread-local singleton (same pattern you already had)
-# ---------------------------------------------------------------------
-class ThreadSingleton(type):
-    _instances: Dict[Tuple[type, int], Any] = {}
-
-    def __call__(cls, *args, **kwargs):
-        tid = threading.get_ident()
-        key = (cls, tid)
-        if key not in cls._instances:
-            cls._instances[key] = super(ThreadSingleton, cls).__call__(*args, **kwargs)
-        return cls._instances[key]
-
-
-class Depot(metaclass=ThreadSingleton):
+class Depot:
     # self declared reserved
     __bus_id__ = PublisherReservedIDs.DEPOT
 
-    def __init__(self):
+    def __init__(
+        self,
+        bus: Bus,
+    ):
 
+        self._bus = bus
+        self.identity = DepotId(self.__class__.__name__, bus.identity)
         self.sentinel = Sentinel()
-        self._setup_port_hub()
+        self._setup_ports()
         self._setup_storage()
         self._notify(LifecycleState.ACTIVE)
 
-    def _setup_port_hub(self):
-
-        self._registry_port = Port(
+    def _setup_ports(self) -> None:
+        self._registry_port = self._bus.port(
             owner=self,
             topic=TopicsEnum.DEPOT_REGISTRY,
             on_arrive=self._on_registry_request,
             on_end_arrive=self._on_end_registry_request,
         )
 
-        self._get_port = Port(
+        self._get_port = self._bus.port(
             owner=self,
             topic=TopicsEnum.DEPOT_GET,
             on_arrive=self._on_get_request,
             on_end_arrive=self._on_end_get_request,
         )
 
-        self._set_port = Port(
+        self._set_port = self._bus.port(
             owner=self,
             topic=TopicsEnum.DEPOT_SET,
             on_arrive=self._on_set_request,
             on_end_arrive=self._on_end_set_request,
         )
 
-        self._validity_port = Port(
+        self._validity_port = self._bus.port(
             owner=self,
             topic=TopicsEnum.VALIDITY,
         )
 
-        self._lifecycle_port = Port(owner=self, topic=TopicsEnum.LIFECYCLE)
+        self._lifecycle_port = self._bus.port(
+            owner=self,
+            topic=TopicsEnum.LIFECYCLE,
+        )
 
     # ------------------------------------------------------------------
     # Lifecycle Management
@@ -207,3 +203,18 @@ class Depot(metaclass=ThreadSingleton):
             table.add_row(parcel_type.__name__, status)
 
         console.print(table)
+
+    def close(self) -> None:
+        """
+        TODO:
+            - Unsubscribe all Ports.
+            - Remove Publisher from MessageHub.
+            - Emit LifecycleState.TERMINATED.
+            - Release runtime resources.
+        """
+
+        warnings.warn(
+            f"{type(self).__name__}.close() is not implemented yet.",
+            RuntimeWarning,
+            stacklevel=2,
+        )

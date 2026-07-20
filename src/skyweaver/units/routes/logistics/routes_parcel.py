@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel.parcel import Parcel
 from skyweaver.units.routes.graph.graph_pack import (
     AirspaceGraphPack,
     RoutesGraphPack,

@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel.parcel import Parcel
 from skyweaver.units.hexgrid.structure.hexgrid import HexGrid
 
 

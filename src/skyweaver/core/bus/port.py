@@ -4,20 +4,23 @@ from uuid import UUID
 from skyweaver.core.bus.protocol.base_message import BaseMessage
 from skyweaver.core.bus.protocol.message_context import MessageContext
 from skyweaver.core.bus.protocol.message_handler import MessageHandler
-from skyweaver.core.bus.runtime.hub import MessageHub
+from skyweaver.core.bus.hub import MessageHub
 
 from skyweaver.core.bus.enums.topics_enum import TopicsEnum
-from skyweaver.core.bus.runtime.publisher_manager import (
+from skyweaver.core.bus.publisher_manager import (
     Publisher,
     PublisherID,
     PublisherReservedIDs,
 )
-from skyweaver.core.bus.runtime.trace_id import TraceID
+from skyweaver.core.bus.observability.trace_id import TraceID
 
 
 class Port:
+
     def __init__(
         self,
+        *,
+        message_hub: MessageHub,
         topic: TopicsEnum,
         owner: object,
         on_arrive: Callable[[BaseMessage, MessageContext], Any] = lambda msg, ctx: None,
@@ -28,7 +31,7 @@ class Port:
         self._on_arrive = on_arrive
         self._on_end_arrive = on_end_arrive
 
-        self._message_hub = MessageHub()
+        self._message_hub = message_hub
         self._publisher_id = self._message_hub.register_publisher(owner=owner)
 
         handler = MessageHandler(accept=self._action, react=self._reaction)

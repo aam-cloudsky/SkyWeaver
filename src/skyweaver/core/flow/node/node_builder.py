@@ -2,11 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 from inspect import Parameter, Signature, iscoroutinefunction, signature
-from types import UnionType
 from typing import (
     Iterable,
     TypeGuard,
-    Union,
     get_args,
     get_origin,
     get_type_hints,
@@ -110,7 +108,13 @@ class NodeDescriptionBuilder:
                     "a type annotation."
                 )
 
-            parcel_type = self._resolve_consumed_parcel_type(annotation)
+            if self._is_optional_parcel_dependency(annotation):
+                raise TypeError(
+                    "Optional[Parcel] is not supported. "
+                    "All Parcel dependencies are mandatory."
+                )
+
+            parcel_type = annotation if self._is_parcel_type(annotation) else None
 
             if parcel_type is not None:
                 consumed_parameters.append(
@@ -199,40 +203,32 @@ class NodeDescriptionBuilder:
             produced_types.append(argument)
 
         return tuple(produced_types)
-
-    def _resolve_consumed_parcel_type(
-        self,
-        annotation: object,
-    ) -> ParcelType | None:
-        if self._is_parcel_type(annotation):
-            return annotation
-
-        origin = get_origin(annotation)
-
-        if origin not in (Union, UnionType):
-            return None
-
-        non_none_arguments = [
-            argument
-            for argument in get_args(annotation)
-            if argument is not type(None)
-        ]
-
-        if len(non_none_arguments) != 1:
-            return None
-
-        candidate = non_none_arguments[0]
-
-        if not self._is_parcel_type(candidate):
-            return None
-
-        return candidate
-
     @staticmethod
     def _is_parcel_type(
         annotation: object,
     ) -> TypeGuard[ParcelType]:
         return isinstance(annotation, type) and issubclass(annotation, Parcel)
+
+    def _is_optional_parcel_dependency(
+        self,
+        annotation: object,
+    ) -> bool:
+        origin = get_origin(annotation)
+
+        if origin is None:
+            return False
+
+        arguments = get_args(annotation)
+        if type(None) not in arguments:
+            return False
+
+        non_none_arguments = [
+            argument for argument in arguments if argument is not type(None)
+        ]
+
+        return len(non_none_arguments) == 1 and self._is_parcel_type(
+            non_none_arguments[0]
+        )
 
     def _validate(
         self,

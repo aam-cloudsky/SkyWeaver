@@ -279,7 +279,7 @@ class Routing:
             pairs = combinations(terminal_list, 2)
 
         elif connectivity_mode == "knn":
-            print(f"connectivity mode knn, {k}")
+
             pairs = Routing.build_knn_pairs(
                 terminal_list,
                 k,

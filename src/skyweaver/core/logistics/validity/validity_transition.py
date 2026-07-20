@@ -1,10 +1,9 @@
 from ast import Module
 from typing import Dict, Set, Type
 
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel.parcel import Parcel
 from dataclasses import dataclass
 from typing import Set, Type
-
 
 
 @dataclass(frozen=True)

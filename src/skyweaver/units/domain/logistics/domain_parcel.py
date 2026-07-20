@@ -1,6 +1,6 @@
 from dataclasses import asdict, dataclass, field
 
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel.parcel import Parcel
 from skyweaver.units.domain.frame.bounds import Bounds
 from skyweaver.units.domain.frame.coordinates import ProjectedCoordinate
 from skyweaver.units.domain.frame.domain import Domain

@@ -3,7 +3,7 @@ from typing import Any, Callable
 from skyweaver.application.runtime.logistics.runtime_outpost import (
     RuntimeOutpost,
 )
-from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.core.logistics.parcel.parcel import Parcel
 from skyweaver.units.domain.logistics.domain_parcel import DomainParcel
 from skyweaver.units.geodata_domain_alignment.logistics.heliports_parcel import (
     HeliportsParcel,

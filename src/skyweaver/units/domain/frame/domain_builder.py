@@ -93,32 +93,26 @@ class DomainBuilder:
     def build(self, layers, padding, margin) -> Domain:
 
         gdf = self._from_layers(layers)
-        print(f"Combined GeoDataFrame has {len(gdf)} geometries.")
         center = self.compute_center(gdf)
-        print(
-            f"Computed domain center at ({center.x}, {center.y}) in CRS {center.crs}."
-        )
         gdf_metric = gdf.to_crs(center.crs)
-        print("Reprojected GeoDataFrame to domain CRS.")
+
         local_points = LocalFrame.geo_coord_to_local(
             gdf_metric,
             domain_center=center,
         )
 
         operational, visualization = self.compute_bounds(local_points, padding, margin)
-        print(
-            f"Converted geometries to local coordinates. Sample local point: ({local_points[0].x}, {local_points[0].y})"
-        )
+
         # operational = self.compute_bounds_axis_aligned(
         #    local_points,
         #    padding,
         # )
-        print(f"Computed operational bounds: {operational}")
+
         # visualization = self.expand_bounds(
         #    operational,
         #    margin,
         # )
-        print(f"Computed visualization bounds: {visualization}")
+
         return Domain(
             center=center,
             operational_bounds=operational,

@@ -69,7 +69,6 @@ class SourcesUnit(OperationalUnit[SourcesOutpost]):
 
         heliports = self._load_data(parameters.heliports_path)
 
-        print(f"Loaded {len(heliports)} heliports from {parameters.heliports_path}")
         vertiports = self._load_data(parameters.vertiports_path)
 
         return GeoDataParcel(

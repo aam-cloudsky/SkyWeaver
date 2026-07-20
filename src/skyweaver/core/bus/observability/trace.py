@@ -6,8 +6,8 @@ from typing import Dict, Optional
 from skyweaver.core.bus.enums.topics_enum import TopicsEnum
 from skyweaver.core.bus.protocol.base_message import BaseMessage
 from skyweaver.core.bus.protocol.message_context import MessageContext
-from skyweaver.core.bus.runtime.publisher_manager import PublisherID
-from skyweaver.core.bus.runtime.trace_id import TraceID
+from skyweaver.core.bus.publisher_manager import PublisherID
+from skyweaver.core.bus.observability.trace_id import TraceID
 
 
 @dataclass
