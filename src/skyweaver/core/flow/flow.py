@@ -5,7 +5,7 @@ from typing import ClassVar, cast
 from skyweaver.core.flow.flow_definition import FlowDefinition
 from skyweaver.core.flow.node.node import Node
 from skyweaver.core.flow.node.node_builder import NodeFactory
-from skyweaver.core.flow.node.node_definition import NodeDefinition
+from skyweaver.core.flow.node.node_definition import NodeDefinition, NodeKind
 from skyweaver.core.logistics.logistics import Logistics
 
 from typing import Generic, ParamSpec, TypeVar
@@ -105,12 +105,14 @@ class Flow(Generic[P, R]):
         )
 
         created_nodes: dict[str, Node] = {}
+        has_input = self._definition.input_definition is not None
 
         try:
             for definition in self._definition.definitions:
                 created_nodes[definition.name] = factory.create(
                     flow_id=self._definition.identity,
                     definition=definition,
+                    status_changes_enabled=(not has_input or definition.kind == NodeKind.INPUT),
                 )
         except Exception:
             for node in reversed(tuple(created_nodes.values())):
@@ -118,6 +120,10 @@ class Flow(Generic[P, R]):
             raise
 
         self._nodes = created_nodes
+
+        if has_input:
+            for node in self._nodes.values():
+                node.enable_status_changes()
 
         self._materialized = True
 

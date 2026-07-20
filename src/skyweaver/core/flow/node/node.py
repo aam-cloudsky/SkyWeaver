@@ -21,6 +21,7 @@ class Node:
     definition: NodeDefinition
     function: Callable
     logistics: Logistics
+    status_changes_enabled: bool = True
 
     def __post_init__(self) -> None:
         """
@@ -81,7 +82,10 @@ class Node:
                 return any(status.any_dependencies_dirty(p) for p in self._produced)
 
             case PropagationPolicy.ALL_DEPENDENCIES_CHANGED:
-                return all(status.all_dependencies_dirty(p) for p in self._produced)
+                return all(
+                    self._all_required_dependencies_dirty(status, produced)
+                    for produced in self._produced
+                )
 
             case PropagationPolicy.MANUAL:
                 return False
@@ -90,10 +94,30 @@ class Node:
             f"Unsupported propagation policy: {self.definition.propagation_policy!r}"
         )
 
+    def _all_required_dependencies_dirty(
+        self,
+        status: Status,
+        produced: type,
+    ) -> bool:
+        descriptor = self._outpost.schema().descriptor(produced)
+        dependency_flags = status.dependency_flags.get(produced, {})
+        required_dependencies = descriptor.depends_on - descriptor.optional_depends_on
+
+        if not any(flag.name == "DIRTY" for flag in dependency_flags.values()):
+            return False
+
+        return all(
+            dependency_flags.get(dependency) is not None
+            and dependency_flags[dependency].name == "DIRTY"
+            for dependency in required_dependencies
+        )
+
     def _on_status_changed(
         self,
         status: Status,
     ) -> None:
+        if not self.status_changes_enabled:
+            return
 
         if not self._should_run(status):
             return
@@ -126,6 +150,9 @@ class Node:
 
     def reset_output(self) -> None:
         self._output_result = _UNSET
+
+    def enable_status_changes(self) -> None:
+        self.status_changes_enabled = True
 
     def close(self) -> None:
         if hasattr(self, "_outpost"):
