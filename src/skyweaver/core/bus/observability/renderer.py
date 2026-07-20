@@ -6,7 +6,7 @@ from rich.text import Text
 from skyweaver.core.bus.enums.topics_enum import TopicsEnum
 from skyweaver.core.bus.observability.trace import TraceEvent
 from skyweaver.core.bus.protocol.validity_message import ValidityMessage
-from skyweaver.core.bus.runtime.publisher_manager import (
+from skyweaver.core.bus.publisher_manager import (
     PublisherID,
     PublisherManager,
     PublisherReservedIDs,
@@ -203,7 +203,7 @@ class EventRenderer:
             t.append(f"#p:{int(pid)}", style="grey50")
             return t
 
-        # Unknown
-        t = Text("UNKNOWN", style="red")
+        # Fallback
+        t = Text("Publisher", style="red")
         t.append(f"#p:{int(pid)}", style="grey50")
         return t

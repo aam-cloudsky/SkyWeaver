@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
-from inspect import Parameter, Signature, signature
+from inspect import Parameter, Signature, iscoroutinefunction, signature
 from types import UnionType
 from typing import (
     Iterable,
@@ -53,6 +53,11 @@ class NodeDescriptionBuilder:
         self._type_hints = get_type_hints(function)
 
     def build(self) -> NodeDescription:
+        if iscoroutinefunction(self._function):
+            raise TypeError(
+                f"Node function '{self._function.__name__}' cannot be async."
+            )
+
         consumed_parameters, external_parameters = self._resolve_parameters()
 
         produced_types, external_return_type = self._resolve_return()
