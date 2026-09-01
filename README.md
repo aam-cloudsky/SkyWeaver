@@ -43,25 +43,51 @@ Current state:
 
 ## Getting Started
 
-### 1. Backend dependencies
+### Backend
+- Python
+- FastAPI
+- GeoPandas
+- Shapely
+- NetworkX
+
+### Frontend
+- Vue 3
+- Pinia
+- MapLibre GL
+- deck.gl
+- TypeScript
+
+---
+
+## ▶️ Running the System
+
+### 1️⃣ Install Python 3.12 and create a virtual environment
+
+SkyWeaver requires Python >=3.12. The recommended way to set this up is [uv](https://docs.astral.sh/uv/):
 
 ```bash
-poetry install
+uv python install 3.12
+uv venv --python 3.12 .venv
 ```
 
-> **Windows note:** GeoPandas/Shapely depend on GDAL. If you hit GDAL-related install errors, the most reliable workaround is to run the commands above in a Python 3.12 environment that already has GDAL configured (e.g., the one bundled with QGIS).
+### 2️⃣ Install backend dependencies
 
-### 2. Frontend dependencies
+```bash
+uv pip install --python .venv/bin/python3.12 -e .
+```
+
+### 3️⃣ Install frontend dependencies
 
 ```bash
 cd frontend
 npm install
+cd ..
 ```
 
-### 3. Run the system
+### 4️⃣ Run the complete system
 
 ```bash
-python examples/droneport_experiment/run_system.py
+.venv/bin/python3.12 examples/droneport_experiment/run_system.py
 ```
 
 This starts the backend runtime, the FastAPI/WebSocket server, and the frontend development server.
@@ -109,3 +135,16 @@ This work was partially funded by CNPq (Grant No. 307525/2022-8) and by the Nati
 This is an active research prototype maintained by a single contributor. Issues and suggestions are welcome; please open an issue before submitting a pull request.
 
 ---
+
+## 🔥 Banner
+
+> 🛰️ *"SkyWeaver: weaving grids, constraints, and future autonomous skies."*
+
+---
+
+
+## TODOs: 
+
+1. Refactor the GraphBuilder to avoid code duplication and improve maintainability. The current implementation has several similar patterns that can be abstracted into helper methods or a more generic graph construction approach.
+2. The class Routing seems a bit odd, once it Routes Unit is already called route. Maybe it should be renamed to something like RoutePlanner or RouteCalculator, to avoid confusion with the unit name and to better reflect its purpose.
+3. In Grid, cluster should have. a role like optional consumed, where it is verified if exists and then consumed, instead of being mandatory. This would allow for more flexible grid configurations and better error handling when clusters are not present. THerefore, we should add Sentinels functionality to understand the diference between CONSUMED and OPTIONAL CONSUMED.
