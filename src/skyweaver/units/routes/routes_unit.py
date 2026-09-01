@@ -26,10 +26,17 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
             "[RoutesUnit] TODO: Cluster Parcel Should be a Optional Consumed Parcel, therefore, 'CONSUMED' is not the right role"
         )
         self.builder = GraphBuilder(outpost=self._outpost)
-        with self._outpost:
 
-            airspace_graph = self.builder.build_airspace_graph()
-            self._outpost.routes_parcel.airspace_graph = airspace_graph
+        # NOTE: airspace_graph used to be built here, in __init__. That only
+        # worked when RoutesUnit was constructed *after* HexGridUnit.run()
+        # had already populated the grid (true for the legacy
+        # DroneportExperimentApp, which constructs units interleaved with
+        # run() calls). RuntimeUnits/ApplicationRuntime constructs every
+        # unit up front, before any run() executes, so building the graph
+        # here captured an empty/default grid (1 vertex, 0 edges) and left
+        # routing permanently empty. Moved into run() below, which is
+        # already re-invoked on every recomputation (see on_left_click in
+        # the legacy app), so this is also the more correct home for it.
 
         # self._terminals: List[HexCell] = self._get_terminals()
 
@@ -52,14 +59,29 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
             self._outpost.vertiports_parcel.vertiports.append(new_vertiport)
 
     def remove_vertiport(self, cell: HexCell) -> None:
+        # NOTE: previously compared `_from_cell_to_cartesian(cell)` (the
+        # hex cell's center point) against the stored vertiport points
+        # using exact Shapely Point equality. The stored points are the
+        # original, continuous-space vertiport coordinates -- not snapped
+        # to the cell center -- so this comparison almost never matched,
+        # and RemoveVertiport silently no-op'd. Fixed to match the same
+        # way add_vertiport/_is_cell_available do: by hex cell, not by
+        # exact point.
+        grid = self._outpost.grid_parcel.grid
+        vertiports = self._outpost.vertiports_parcel.vertiports
+        vertiport_cells = grid.get_cell_from_cartesians(vertiports)
 
-        to_be_removed_vertiport = self._from_cell_to_cartesian(cell)
+        remaining = [
+            vertiport
+            for vertiport, vertiport_cell in zip(vertiports, vertiport_cells)
+            if vertiport_cell != cell
+        ]
 
-        if to_be_removed_vertiport not in self._outpost.vertiports_parcel.vertiports:
+        if len(remaining) == len(vertiports):
             return
 
         with self._outpost:
-            self._outpost.vertiports_parcel.vertiports.remove(to_be_removed_vertiport)
+            self._outpost.vertiports_parcel.vertiports = remaining
 
     def clear_vertiports(self) -> None:
         with self._outpost:
@@ -73,8 +95,12 @@ class RoutesUnit(OperationalUnit[RoutesOutpost]):
 
     def run(self) -> None:
 
+        airspace_graph = self.builder.build_airspace_graph()
+
+        with self._outpost:
+            self._outpost.routes_parcel.airspace_graph = airspace_graph
+
         vertiports = self._get_vertiports()
-        airspace_graph = self._outpost.routes_parcel.airspace_graph
         parameters = RoutingParameters.from_yaml_parcel(self._outpost.yaml_parcel)
 
         # paths: List[List[HexCell]] = Routing.compute_terminal_paths(

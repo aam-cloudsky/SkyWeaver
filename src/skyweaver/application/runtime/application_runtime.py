@@ -67,8 +67,42 @@ class ApplicationRuntime:
         self.units.domain.run()
         self.units.alignment.run()
         self.units.grid.run()
+        self._remove_vertiport_heliport_conflicts()
         self.units.restriction.run()
         self.units.routes.run()
+
+    def _remove_vertiport_heliport_conflicts(self) -> None:
+        """
+        Ported from the legacy DroneportExperimentApp
+        (src/skyweaver/application/legacy/droneport_experiment_app.py).
+
+        Removes candidate vertiports that fall on the same hex cell as a
+        heliport, before routing runs. Without this step, RoutesUnit's
+        connectivity/MST computation ends up empty for the Rio de Janeiro
+        case-study dataset (one of the 18 candidate droneports collides
+        with a heliport cell).
+        """
+
+        grid = self.units.grid._outpost.grid_parcel.grid
+
+        heliports = self.units.alignment._outpost.heliports_parcel.heliports
+        vertiports = self.units.alignment._outpost.vertiports_parcel.vertiports
+
+        heliport_cells = set(grid.get_cell_from_cartesians(heliports))
+
+        filtered_vertiports = []
+        for point in vertiports:
+            cell = grid.get_cell_from_cartesian(point)
+            if cell is None:
+                continue
+            if cell in heliport_cells:
+                continue
+            filtered_vertiports.append(point)
+
+        with self.units.alignment._outpost:
+            self.units.alignment._outpost.vertiports_parcel.vertiports = (
+                filtered_vertiports
+            )
 
     # ======================================================
     # Public API

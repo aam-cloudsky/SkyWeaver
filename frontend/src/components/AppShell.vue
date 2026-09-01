@@ -2,6 +2,33 @@
 
   <div class="app-shell">
     
+    <header class="top-navbar">
+
+      <div class="navbar-brand">
+
+        <div class="brand-title">
+          SkyWeaver
+        </div>
+
+        <div class="brand-subtitle">
+          Operational Airspace Sandbox
+        </div>
+
+      </div>
+
+      <div class="navbar-actions">
+
+        <button
+          class="navbar-button"
+          title="Center Domain"
+          @click="focusDomain"
+        >
+          ⌖
+        </button>
+
+      </div>
+
+    </header>
 
     <MapCanvas />
 
@@ -113,6 +140,8 @@
 
 import { ref, onMounted } from 'vue'
 
+document.body.classList.add('theme-dark')
+
 import SidebarPanel from './SidebarPanel.vue'
 import MapCanvas from './MapCanvas.vue'
 import VueDraggableResizable from 'vue-draggable-resizable'
@@ -134,7 +163,22 @@ const sidebarPosition = ref({
 })
 const operationalStore =
   useOperationalStore()
+
+// Future improvement:
+// replace flat map interaction with globe projection support.
+// Candidate approaches:
+// - MapLibre globe mode
+// - deck.gl GlobeView
+// - Mapbox globe projection compatibility layer
+function focusDomain() {
+
+  window.dispatchEvent(
+    new CustomEvent('skyweaver-focus-domain')
+  )
+}
+
 onMounted(async () => {
+
 
   
 
@@ -203,10 +247,20 @@ onMounted(async () => {
     }
 
     websocket.onmessage = (event) => {
+  const scene = JSON.parse(event.data)
 
-      const scene = JSON.parse(event.data)
-      runtimeStore.applyScene(scene)
-    }
+  console.log(
+    '[SkyWeaver] websocket scene received:',
+    scene
+  )
+
+  console.log(
+    '[SkyWeaver] scene layer ids:',
+    scene.layers?.map((layer: any) => layer.id)
+  )
+
+  runtimeStore.applyScene(scene)
+}
   }
 
   connectWebSocket()
@@ -242,6 +296,143 @@ const runtimeStore =
 
 <style scoped>
 
+.top-navbar {
+
+  position: absolute;
+
+  top: 20px;
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  width: min(760px, calc(100vw - 40px));
+
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 10px 18px;
+
+  border-radius: 22px;
+
+  background: rgba(2,6,23,0.82);
+
+  backdrop-filter: blur(28px);
+
+  border:
+    1px solid rgba(255,255,255,0.06);
+
+  box-shadow:
+    0 12px 34px rgba(0,0,0,0.22);
+
+  z-index: 2500;
+}
+
+.navbar-brand {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 2px;
+}
+
+.brand-title {
+
+  font-size: 17px;
+
+  font-weight: 700;
+
+  color: #f8fafc;
+}
+
+.brand-subtitle {
+
+  font-size: 11px;
+
+  font-weight: 500;
+
+  color: #94a3b8;
+}
+
+.navbar-actions {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+}
+
+.navbar-button {
+
+  width: 40px;
+  height: 40px;
+
+  border: none;
+
+  border-radius: 16px;
+
+  cursor: pointer;
+
+  font-size: 18px;
+
+  background:
+    rgba(15,23,42,0.78);
+
+  color: #f8fafc;
+
+  backdrop-filter: blur(20px);
+
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+
+.navbar-button:hover {
+
+  transform: scale(1.08);
+
+  background:
+    rgba(30,41,59,0.92);
+
+  box-shadow:
+    0 0 18px rgba(59,130,246,0.18);
+}
+
+:global(body.theme-dark) {
+  background: #020617;
+}
+
+:global(body.theme-dark) .top-navbar,
+:global(body.theme-dark) .sidebar,
+:global(body.theme-dark) .backend-status,
+:global(body.theme-dark) .tool-coordinates,
+:global(body.theme-dark) .add-menu,
+:global(body.theme-dark) .floating-toolbar button,
+:global(body.theme-dark) .navbar-button,
+:global(body.theme-dark) .add-option {
+
+  background: rgba(15,23,42,0.72) !important;
+
+  border:
+    1px solid rgba(255,255,255,0.08) !important;
+
+  color: #f8fafc !important;
+}
+
+:global(body.theme-dark) .brand-title,
+:global(body.theme-dark) .add-label,
+:global(body.theme-dark) .backend-status,
+:global(body.theme-dark) .tool-coordinates {
+  color: #f8fafc !important;
+}
+
+:global(body.theme-dark) .brand-subtitle {
+  color: #94a3b8 !important;
+}
+
 .tool-wrapper {
   position: relative;
 }
@@ -261,7 +452,7 @@ const runtimeStore =
 
   border-radius: 28px;
 
-  background: rgba(255,255,255,0.72);
+  background: rgba(2,6,23,0.88);
 
   backdrop-filter: blur(28px);
 
@@ -277,7 +468,7 @@ const runtimeStore =
   border: none;
 
   background:
-    rgba(255,255,255,0.58);
+    rgba(15,23,42,0.82);
 
   width: 132px;
   height: 160px;
@@ -346,14 +537,14 @@ const runtimeStore =
 
   line-height: 1.2;
 
-  color: #111827;
+  color: #f8fafc;
 
   flex-shrink: 0;
 }
 .floating-toolbar {
   position: absolute;
 
-  top: 20px;
+  top: 84px;
   right: 20px;
 
   display: flex;
@@ -375,9 +566,9 @@ const runtimeStore =
   cursor: pointer;
 
   background:
-    rgba(255,255,255,0.72);
+    rgba(15,23,42,0.82);
 
-  color: #111827;
+  color: #f8fafc;
 
   font-size: 22px;
 
@@ -402,10 +593,10 @@ const runtimeStore =
     scale(1.20);
 
   background:
-    rgba(255,255,255,0.82);
+    rgba(30,41,59,0.92);
 
   box-shadow:
-    0 10px 28px rgba(0,0,0,0.12);
+    0 0 18px rgba(59,130,246,0.18);
 }
 
 .app-shell {
@@ -423,21 +614,21 @@ const runtimeStore =
   width: 340px;
   max-height: calc(100vh - 40px);
 
-  padding: 28px;
+  padding: 0;
 
-  overflow-y: auto;
+  overflow: hidden;
 
   border-radius: 32px;
 
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(15,23,42,0.82);
 
   backdrop-filter: blur(32px);
 
   border:
-    1px solid rgba(255,255,255,0.08);
+    1px solid rgba(255,255,255,0.06);
 
   box-shadow:
-  0 8px 24px rgba(0,0,0,0.08);
+    0 12px 32px rgba(0,0,0,0.18);
 
   z-index: 3000;
 
@@ -445,30 +636,59 @@ const runtimeStore =
     transform 0.25s ease,
     opacity 0.25s ease;
 
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    }
+  display: flex;
+  flex-direction: column;
+}
 
 .sidebar-toggle {
   position: absolute;
 
-  top: 16px;
+  top: 76px;
   left: 16px;
 
   z-index: 20000;
 
-  padding: 8px 12px;
+  width: 56px;
+  height: 56px;
 
   border: none;
 
-  border-radius: 8px;
+  border-radius: 18px;
 
-  background: white;
+  background:
+    rgba(15,23,42,0.82);
+
+  color: #f8fafc;
 
   cursor: pointer;
 
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  font-size: 22px;
+
+  backdrop-filter:
+    blur(24px);
+
+  border:
+    1px solid rgba(255,255,255,0.08);
+
+  box-shadow:
+    0 10px 28px rgba(0,0,0,0.18);
+
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.sidebar-toggle:hover {
+
+  transform:
+    scale(1.08);
+
+  background:
+    rgba(30,41,59,0.92);
+
+  box-shadow:
+    0 0 18px rgba(59,130,246,0.18);
 }
 
 :deep(.draggable-panel) {
@@ -513,7 +733,7 @@ const runtimeStore =
   border-radius: 16px;
 
   background:
-    rgba(255,255,255,0.72);
+    rgba(15,23,42,0.82);
 
   backdrop-filter:
     blur(24px);
@@ -528,7 +748,7 @@ const runtimeStore =
 
   font-weight: 500;
 
-  color: #111827;
+  color: #f8fafc;
 
   white-space: nowrap;
 
@@ -554,7 +774,7 @@ const runtimeStore =
   border-radius: 18px;
 
   background:
-    rgba(255,255,255,0.72);
+    rgba(15,23,42,0.82);
 
   backdrop-filter:
     blur(24px);
@@ -571,7 +791,7 @@ const runtimeStore =
 
   font-weight: 600;
 
-  color: #111827;
+  color: #f8fafc;
 }
 
 .status-dot {

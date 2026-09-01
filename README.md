@@ -75,23 +75,33 @@ The system is now capable of running a full frontend/backend reactive GIS loop.
 
 ## ▶️ Running the System
 
-### 1️⃣ Install backend dependencies
+### 1️⃣ Install Python 3.12 and create a virtual environment
+
+SkyWeaver requires Python >=3.12. The recommended way to set this up is [uv](https://docs.astral.sh/uv/):
 
 ```bash
-poetry install
+uv python install 3.12
+uv venv --python 3.12 .venv
 ```
 
-### 2️⃣ Install frontend dependencies
+### 2️⃣ Install backend dependencies
+
+```bash
+uv pip install --python .venv/bin/python3.12 -e .
+```
+
+### 3️⃣ Install frontend dependencies
 
 ```bash
 cd frontend
 npm install
+cd ..
 ```
 
-### 3️⃣ Run the complete system
+### 4️⃣ Run the complete system
 
 ```bash
-python examples/droneport_experiment/run_system.py
+.venv/bin/python3.12 examples/droneport_experiment/run_system.py
 ```
 
 This launches:
@@ -181,22 +191,6 @@ Feel free to open issues or suggest improvements. The project is designed to be 
 > 🛰️ *"SkyWeaver: weaving grids, constraints, and future autonomous skies."*
 
 ---
-
-## 📄 License
-
-This project is currently private and all data is confidential. Unauthorized use or distribution is strictly prohibited.
-
----
-
-I needed firstly find the qgis python 3.12
-
-them install the project:
-$ & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m pip install -e .
-
-$ To Use QGIS's python: & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" 
-$ pip: & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m pip
-$ & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m poetry install
-$ & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m skyweaver.distributions.uav_mav_uav_distribution
 
 
 ## TODOs: 
