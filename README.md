@@ -1,206 +1,111 @@
 # 🛰️ SkyWeaver
 
-A GIS-oriented platform for experimenting with urban airspace organization, routing, droneport planning, and future autonomous aerial operations.
+A reactive architecture for urban-airspace Command-and-Control, combining a shared-state repository, an explicit dependency graph, a synchronous communication bus, and a GIS scene-projection pipeline.
+
+This repository accompanies the paper *"SkyWeaver: A Reactive Command-and-Control Platform for Urban Airspace Planning"* (SIGE 2026), by Davi Guanabara de Aragão, Cesar Augusto Cavalheiro Marcondes, Filipe Alves Neto Verri, and Marcos R. O. A. Máximo — Autonomous Computational Systems Lab (LAB-SCA), Aeronautics Institute of Technology (ITA).
 
 ---
 
-## 📚 Architecture Documentation
+## What is SkyWeaver?
 
-For a deeper explanation of the runtime architecture, synchronization model, GIS boundaries, scene materialization pipeline, and frontend/backend design philosophy, see:
+SkyWeaver explores how a Command-and-Control platform can maintain a consistent, traceable representation of urban airspace—heliports, droneport candidates, restrictions, and routing—as that representation continuously changes. Instead of recomputing the entire operational picture on every change, SkyWeaver tracks dependencies between artifacts explicitly and re-executes only the units affected by a given mutation.
 
-```text
-project_description.md
-```
+The architecture is organized around four mechanisms:
 
----
+- **Dependency Management** — an explicit data-flow graph connecting producer-consumer units, so that only the subgraph affected by a change is re-executed.
+- **Shared-State Synchronization** — a single authoritative repository, with nodes registering typed contracts for the state they consume, mutate, and produce.
+- **Bus Coordination** — a synchronous, split-phase communication protocol that makes every request, reply, and broadcast observable and causally traceable.
+- **Geospatial Scene Projection** — materializes the synchronized state into an interactive GIS scene, decoupled from the backend's internal computation.
 
-## 🌐 What is SkyWeaver?
-
-SkyWeaver is a modular spatial platform designed to explore:
-
-- urban airspace organization;
-- droneport / vertiport planning;
-- routing and operational constraints;
-- reactive GIS visualization;
-- future autonomous aerial operations.
-
-The platform combines:
-
-- a Python GIS/runtime backend;
-- a reactive WebSocket scene pipeline;
-- a Vue + MapLibre frontend;
-- operational editing workflows.
-
-The project is evolving toward a future platform capable of supporting:
-
-- planning;
-- simulation;
-- optimization;
-- operational airspace studies.
+A case study built around the Rio de Janeiro metropolitan region validates this organization: heliports (DECEA registry), droneport candidates (ABRASCE shopping centers), a Single-Linkage HAC backbone over a hexagonal navigable-airspace grid, and operational restrictions are integrated into a single runtime. A controlled-recomputation experiment shows that mutating a single intent re-executes only one of seven operational units.
 
 ---
 
-## 🚀 Current Status
+## Status
 
-SkyWeaver already supports:
+SkyWeaver is an **architectural proof of concept**, not an operationally validated Command-and-Control system. It has not been evaluated with human operators, real-time traffic, or certified ATM infrastructure.
 
-- backend runtime bootstrap;
-- GIS scene materialization;
-- WebSocket scene streaming;
-- frontend spatial visualization;
-- interactive vertiport insertion;
-- route recomputation after accepted mutations.
+Current state:
 
-The system is now capable of running a full frontend/backend reactive GIS loop.
+- The backend pipeline (YAML loading, source ingestion, domain projection, hex-grid discretization, restriction handling, backbone routing) is implemented and was the basis for the recomputation experiments reported in the SIGE 2026 paper.
+- The frontend renders the synchronized geospatial scene (heliports, droneports, restrictions, corridors) as a **read-only visualization**.
+- Interactive UI controls for issuing intents directly from the scene (toggling restrictions, adding or removing droneports) are **under development** and not yet exposed in the frontend.
 
 ---
 
-## 🖥️ Tech Stack
+## Tech Stack
 
-### Backend
-- Python
-- FastAPI
-- GeoPandas
-- Shapely
-- NetworkX
+**Backend:** Python (≥3.12), FastAPI (WebSocket interface), GeoPandas, Shapely, igraph, PyYAML
 
-### Frontend
-- Vue 3
-- Pinia
-- MapLibre GL
-- deck.gl
-- TypeScript
+**Frontend:** Vue 3, TypeScript, Vite, Pinia, MapLibre GL, deck.gl, Turf.js
 
 ---
 
-## ▶️ Running the System
+## Getting Started
 
-### 1️⃣ Install backend dependencies
+### 1. Backend dependencies
 
 ```bash
 poetry install
 ```
 
-### 2️⃣ Install frontend dependencies
+> **Windows note:** GeoPandas/Shapely depend on GDAL. If you hit GDAL-related install errors, the most reliable workaround is to run the commands above in a Python 3.12 environment that already has GDAL configured (e.g., the one bundled with QGIS).
+
+### 2. Frontend dependencies
 
 ```bash
 cd frontend
 npm install
 ```
 
-### 3️⃣ Run the complete system
+### 3. Run the system
 
 ```bash
 python examples/droneport_experiment/run_system.py
 ```
 
-This launches:
-
-- the backend runtime;
-- the FastAPI server;
-- the frontend development server.
+This starts the backend runtime, the FastAPI/WebSocket server, and the frontend development server.
 
 ---
 
-## 🧭 Current Features
+## Roadmap
 
-Current implemented features include:
+Planned directions (see also the Future Work section of the SIGE 2026 paper):
 
-- reactive GIS scene streaming;
-- frontend scene rendering;
-- vertiport visualization;
-- interactive vertiport insertion;
-- synchronized runtime recomputation;
-- hexagonal operational discretization;
-- local projected operational runtime.
-
----
-
-## 🛣️ Roadmap
-
-Planned next steps include:
-
-- heliport rendering;
-- route rendering;
-- restriction / no-fly zone overlays;
-- operational radius visualization;
-- layer visibility controls;
-- richer operational editing tools;
-- optimization workflows;
-- scenario editing;
-- simulation orchestration.
+- Interactive frontend controls for issuing intents directly from the geospatial scene.
+- Artifact versioning, so each produced artifact retains a history of prior states.
+- Configurable invalidation policies (single-dependency vs. all-dependencies triggers).
+- A human-in-the-loop confirmation step preceding execution.
+- Persistence of complete state snapshots to construct and compare planning scenarios.
+- An auditability and reproducibility mechanism built on structured provenance records.
 
 ---
 
-## 🧠 Important Architectural Principle
+## Citation
 
-The frontend operates only in WGS84 geographic coordinates.
+If you use this work, please cite:
 
-The backend is responsible for:
-
-```text
-WGS84
-    ↓
-Domain Projection
-    ↓
-Local Continuous Space
-    ↓
-Hexagonal Operational Space
+```bibtex
+@inproceedings{aragao2026skyweaver,
+  title     = {SkyWeaver: A Reactive Command-and-Control Platform for Urban Airspace Planning},
+  author    = {Aragão, Davi Guanabara de and Marcondes, Cesar Augusto Cavalheiro and Verri, Filipe Alves Neto and Máximo, Marcos R. O. A.},
+  booktitle = {Proceedings of SIGE 2026},
+  year      = {2026}
+}
 ```
 
-This keeps the frontend isolated from:
-
-- runtime synchronization internals;
-- hexagonal discretization internals;
-- routing graph internals;
-- local operational coordinate systems.
+*(fill in volume/pages/DOI once the proceedings are indexed)*
 
 ---
 
-## 🚩 Current Direction
+## Acknowledgments
 
-SkyWeaver is evolving from a GIS debugging/prototyping tool into a reactive operational spatial platform.
-
-The project is intentionally moving toward:
-
-- scene-based frontend rendering;
-- reactive runtime propagation;
-- operational GIS workflows;
-- modular simulation and optimization support.
+This work was partially funded by CNPq (Grant No. 307525/2022-8) and by the National Civil Aviation Secretariat (SAC) under Grant No. TED n. 11525720240005-003882/2024, through the ITA AAM SAC INOVAAC 2 program.
 
 ---
 
-## 💬 How to contribute
+## Contributing
 
-Feel free to open issues or suggest improvements. The project is designed to be modular and highly maintainable.
-
----
-
-## 🔥 Banner
-
-> 🛰️ *"SkyWeaver: weaving grids, constraints, and future autonomous skies."*
+This is an active research prototype maintained by a single contributor. Issues and suggestions are welcome; please open an issue before submitting a pull request.
 
 ---
-
-## 📄 License
-
-This project is currently private and all data is confidential. Unauthorized use or distribution is strictly prohibited.
-
----
-
-I needed firstly find the qgis python 3.12
-
-them install the project:
-$ & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m pip install -e .
-
-$ To Use QGIS's python: & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" 
-$ pip: & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m pip
-$ & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m poetry install
-$ & "C:\Program Files\QGIS 3.40.8\apps\Python312\python.exe" -m skyweaver.distributions.uav_mav_uav_distribution
-
-
-## TODOs: 
-
-1. Refactor the GraphBuilder to avoid code duplication and improve maintainability. The current implementation has several similar patterns that can be abstracted into helper methods or a more generic graph construction approach.
-2. The class Routing seems a bit odd, once it Routes Unit is already called route. Maybe it should be renamed to something like RoutePlanner or RouteCalculator, to avoid confusion with the unit name and to better reflect its purpose.
-3. In Grid, cluster should have. a role like optional consumed, where it is verified if exists and then consumed, instead of being mandatory. This would allow for more flexible grid configurations and better error handling when clusters are not present. THerefore, we should add Sentinels functionality to understand the diference between CONSUMED and OPTIONAL CONSUMED.
