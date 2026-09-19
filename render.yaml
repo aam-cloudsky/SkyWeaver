@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: skyweaver-api
+    runtime: python
+    plan: free
+    buildCommand: pip install --upgrade pip && pip install -e .
+    startCommand: python examples/droneport_experiment/run_server.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+  - type: web
+    name: skyweaver-frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://skyweaver-api.onrender.com
+      - key: VITE_WS_BASE_URL
+        value: wss://skyweaver-api.onrender.com
