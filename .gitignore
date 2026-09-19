@@ -183,6 +183,8 @@ cython_debug/
 
 /data/geojson/*.geojson
 *.geojson
+!/examples/droneport_experiment/data/heliport.geojson
+!/examples/droneport_experiment/data/regional_mega_shoppings.geojson
 *.csv
 /.vscode
 data/.DS_Store

@@ -667,7 +667,7 @@ onMounted(() => {
     if (operationalStore.activeTool === 'droneport') {
 
       const response = await fetch(
-        'http://127.0.0.1:8000/intent/add-vertiport',
+        `${import.meta.env.VITE_API_BASE_URL}/intent/add-vertiport`,
         {
           method: 'POST',
 
