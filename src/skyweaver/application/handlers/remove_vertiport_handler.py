@@ -1,12 +1,6 @@
-from shapely.geometry import Point
-import geopandas as gpd
-
-from skyweaver.application.intents.remove_vertiport import (
-    RemoveVertiport,
-)
-from skyweaver.application.runtime.application_context import (
-    ApplicationContext,
-)
+from skyweaver.application.handlers import intent_rules
+from skyweaver.application.intents.remove_vertiport import RemoveVertiport
+from skyweaver.application.runtime.application_context import ApplicationContext
 
 
 class RemoveVertiportHandler:
@@ -15,10 +9,10 @@ class RemoveVertiportHandler:
 
     Responsibilities:
     - receive WGS84 geographic coordinates from the application layer;
-    - project frontend coordinates into the operational local frame;
-    - discretize local coordinates into operational hexagonal cells;
-    - remove existing vertiports from the routing system;
-    - trigger route recomputation after topology mutations.
+    - locate the hexagonal cell under the point (`intent_rules.locate`);
+    - reject a cell outside the grid or without a vertiport;
+    - feed the vertiport edit log with the removal; the flow recomputes the
+      vertiports, the routes and the scene.
 
     Spatial pipeline:
         Frontend WGS84 Coordinates
@@ -29,7 +23,7 @@ class RemoveVertiportHandler:
                 ↓
         Hexagonal Cell Projection
                 ↓
-        Vertiport Removal
+        VertiportEdit("remove", coord)
     """
 
     def __init__(self, context: ApplicationContext):
@@ -37,31 +31,8 @@ class RemoveVertiportHandler:
 
     def __call__(self, intent: RemoveVertiport) -> None:
 
-        domain = self.context.units.domain._outpost.domain_parcel.domain
-
-        grid = self.context.units.grid._outpost.grid_parcel.grid
-
-        geo_point = Point(intent.longitude, intent.latitude)
-
-        geo_gdf = gpd.GeoDataFrame(
-            geometry=[geo_point],
-            crs="EPSG:4326",
+        self.context.runtime.transact(
+            lambda snapshot: intent_rules.remove_vertiport(
+                snapshot, intent.latitude, intent.longitude
+            )
         )
-
-        local_point = domain.to_local(geo_gdf)[0]
-
-        cell = grid.get_cell_from_cartesian(local_point)
-
-        if cell is None:
-            return
-
-        vertiports = self.context.units.routes._outpost.vertiports_parcel.vertiports
-
-        vertiport_cells = set(grid.get_cell_from_cartesians(vertiports))
-
-        if cell not in vertiport_cells:
-            return
-
-        self.context.units.routes.remove_vertiport(cell)
-
-        self.context.units.routes.run()

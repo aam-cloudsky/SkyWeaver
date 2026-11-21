@@ -1,44 +1,41 @@
-from typing import Callable
+import threading
+from pathlib import Path
+from typing import Callable, Optional
 
-from skyweaver.application.runtime.logistics.runtime_outpost import (
-    RuntimeOutpost,
-)
+from reed import Session
+
 from skyweaver.application.runtime.materialization.scene_materializer import (
     SceneMaterializer,
     SceneSnapshot,
 )
-from skyweaver.application.runtime.runtime_units import RuntimeUnits
-from skyweaver.core.logistics.parcel import Parcel
-from skyweaver.model.sites import CandidateVertiports, Heliports
-from skyweaver.units.restriction.restrictions import locate_heliport_cells
-from skyweaver.units.routes.vertiports import filter_candidate_vertiports
+from skyweaver.flow import start_session
 
 
 class ApplicationRuntime:
     """
-    Live operational runtime boundary.
+    Live operational runtime boundary, on top of a Reed session.
 
     Responsibilities:
-    - observe synchronized runtime parcels through RuntimeOutpost;
-    - coordinate runtime-to-scene materialization;
-    - maintain the current externally consumable scene snapshot;
-    - notify subscribers whenever runtime state changes.
+    - own the Reed session of SkyWeaver's flow (`skyweaver.flow`);
+    - apply each change as one transaction (read the snapshot, compute the
+      value to feed, feed, push, read the scene);
+    - keep the current scene and notify subscribers when it changes.
 
-    Architectural role:
-    - RuntimeOutpost performs synchronization.
-    - SceneMaterializer performs GIS projection/materialization.
-    - ApplicationRuntime coordinates the operational lifecycle.
+    Threads: one lock serializes every use of the session. The startup runs
+    on the constructing thread; each intent runs on the thread that calls
+    `transact` (a FastAPI worker thread for the HTTP endpoints). Two intents
+    therefore never interleave a snapshot read and a feed.
 
     Runtime pipeline:
-        Runtime Parcels
+        transact(update)
             ↓
-        RuntimeOutpost Synchronization
+        update(snapshot) → value to feed (or None: rejected, nothing runs)
             ↓
-        SceneMaterializer
+        Session.feed(value), Session.push()
             ↓
-        SceneSnapshot
+        SceneSnapshot (the `materialize_scene` node)
             ↓
-        External Subscribers
+        Subscribers
     """
 
     def __init__(
@@ -46,61 +43,13 @@ class ApplicationRuntime:
         config_path: str,
     ):
 
-        self.units = RuntimeUnits(config_path)
-
-        self._outpost = RuntimeOutpost()
+        self._lock = threading.Lock()
         self._materializer = SceneMaterializer()
-
-        self._scene = SceneSnapshot(layers=[])
-
         self._callbacks: list[Callable[[SceneSnapshot], None]] = []
 
-        self._outpost.set_on_pallet_sync(self._on_pallet_sync)
-
-        self._bootstrap_units()
-
-    # ======================================================
-    # Bootstrap
-    # ======================================================
-
-    def _bootstrap_units(self) -> None:
-
-        self.units.yaml.run()
-        self.units.sources.run()
-        self.units.domain.run()
-        self.units.alignment.run()
-        self.units.grid.run()
-        self._remove_vertiport_heliport_conflicts()
-        self.units.restriction.run()
-        self.units.routes.run()
-
-    def _remove_vertiport_heliport_conflicts(self) -> None:
-        """
-        Ported from the legacy DroneportExperimentApp
-        (src/skyweaver/application/legacy/droneport_experiment_app.py).
-
-        Removes candidate vertiports that fall on the same hex cell as a
-        heliport, before routing runs. Without this step, RoutesUnit's
-        connectivity/MST computation ends up empty for the Rio de Janeiro
-        case-study dataset (one of the 18 candidate droneports collides
-        with a heliport cell).
-        """
-
-        grid = self.units.grid._outpost.grid_parcel.grid
-
-        heliports = self.units.alignment._outpost.heliports_parcel.heliports
-        vertiports = self.units.alignment._outpost.vertiports_parcel.vertiports
-
-        base = filter_candidate_vertiports(
-            CandidateVertiports(points=tuple(vertiports)),
-            locate_heliport_cells(Heliports(points=tuple(heliports)), grid),
-            grid,
-        )
-
-        with self.units.alignment._outpost:
-            self.units.alignment._outpost.vertiports_parcel.vertiports = list(
-                base.points
-            )
+        with self._lock:
+            self._session: Session = start_session(Path(config_path))
+            self._scene: SceneSnapshot = self._session.snapshot()[SceneSnapshot]
 
     # ======================================================
     # Public API
@@ -113,6 +62,38 @@ class ApplicationRuntime:
 
         return self._materializer.serialize_scene_to_dict(self._scene)
 
+    def snapshot(self):
+        """The current values of the flow (a Reed snapshot, read only)."""
+
+        with self._lock:
+            return self._session.snapshot()
+
+    def transact(self, update: Callable[[object], Optional[object]]) -> bool:
+        """
+        Apply one change atomically.
+
+        `update` receives the current snapshot and returns the value to
+        feed, or `None` to change nothing. Returns whether a value was fed.
+        Subscribers are notified once, with the final scene, when the scene
+        changed.
+        """
+
+        with self._lock:
+            value = update(self._session.snapshot())
+            if value is None:
+                return False
+
+            self._session.feed(value)
+            self._session.push()
+
+            scene = self._session.snapshot()[SceneSnapshot]
+            if scene is not self._scene:
+                self._scene = scene
+                for callback in list(self._callbacks):
+                    callback(scene)
+
+            return True
+
     def subscribe(
         self,
         callback: Callable[[SceneSnapshot], None],
@@ -121,21 +102,3 @@ class ApplicationRuntime:
         self._callbacks.append(callback)
 
         callback(self._scene)
-
-        # self._callbacks.append(callback)
-
-    # ======================================================
-    # Reactive Synchronization
-    # ======================================================
-
-    def _on_pallet_sync(
-        self,
-        pallet: dict[type[Parcel], Parcel],
-    ) -> None:
-
-        scene = self._materializer.materialize(pallet, self._outpost)
-
-        self._scene = scene
-
-        for callback in self._callbacks:
-            callback(scene)

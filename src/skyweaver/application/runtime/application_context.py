@@ -10,7 +10,6 @@ from skyweaver.application.runtime.application_runtime import (
 from skyweaver.application.runtime.materialization.scene_materializer import (
     SceneSnapshot,
 )
-from skyweaver.application.runtime.runtime_units import RuntimeUnits
 
 
 @dataclass
@@ -59,21 +58,6 @@ class ApplicationContext:
     def get_transport_scene(self) -> dict:
 
         return self.runtime.get_transport_scene()
-
-    @property
-    def units(self) -> RuntimeUnits:
-        """
-        Expose runtime operational units to the application layer.
-
-        Notes:
-        - Handlers may use this boundary to access operational units;
-        - external interfaces (frontend/server/websocket) should NOT
-          manipulate units directly;
-        - this property exists primarily to support application-level
-          command handlers.
-        """
-
-        return self.runtime.units
 
     # ======================================================
     # Intent Dispatching

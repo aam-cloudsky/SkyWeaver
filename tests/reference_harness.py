@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import json
 import socket
+from collections.abc import Iterator
+from contextlib import contextmanager
 import threading
 import time
 from dataclasses import dataclass
@@ -48,10 +50,9 @@ SEQUENCE: tuple[Step, ...] = (
 )
 
 
-def build_app() -> Any:
-    """Build the FastAPI app exactly as `run_server.py` does."""
+def build_context() -> Any:
+    """The application context, wired as `run_server.py` wires it."""
 
-    from skyweaver.api.server import SkyWeaverBackend
     from skyweaver.application.dispatching.build_dispatcher import build_dispatcher
     from skyweaver.application.runtime.application_context import (
         ApplicationContext,
@@ -59,13 +60,19 @@ def build_app() -> Any:
     from skyweaver.application.runtime.application_runtime import (
         ApplicationRuntime,
     )
-    from skyweaver.core.logistics.depot import Depot
 
-    Depot()
     runtime = ApplicationRuntime(config_path=str(CONFIG_PATH))
     context = ApplicationContext(runtime=runtime)
     context.set_dispatcher(build_dispatcher(context))
-    return SkyWeaverBackend().create_app(context)
+    return context
+
+
+def build_app(context: Any | None = None) -> Any:
+    """Build the FastAPI app exactly as `run_server.py` does."""
+
+    from skyweaver.api.server import SkyWeaverBackend
+
+    return SkyWeaverBackend().create_app(context or build_context())
 
 
 def canonical(value: Any) -> Any:
@@ -156,6 +163,30 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+@contextmanager
+def served(app: Any | None = None) -> Iterator[str]:
+    """Serve the app with uvicorn on a free local port; yield its base URL."""
+
+    import uvicorn
+
+    port = _free_port()
+    server = uvicorn.Server(
+        uvicorn.Config(app or build_app(), host="127.0.0.1", port=port, log_level="error")
+    )
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 120.0
+    while not server.started:
+        if time.monotonic() > deadline:
+            raise RuntimeError("server did not start")
+        time.sleep(0.1)
+    try:
+        yield f"127.0.0.1:{port}"
+    finally:
+        server.should_exit = True
+        thread.join(timeout=10)
+
+
 def observe_websocket_after_intent(wait_seconds: float = 3.0) -> dict[str, Any]:
     """Serve the app on a real port; report what a WebSocket client receives.
 
@@ -166,29 +197,14 @@ def observe_websocket_after_intent(wait_seconds: float = 3.0) -> dict[str, Any]:
     import asyncio
 
     import httpx
-    import uvicorn
     import websockets
 
-    port = _free_port()
-    server = uvicorn.Server(
-        uvicorn.Config(build_app(), host="127.0.0.1", port=port, log_level="error")
-    )
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    deadline = time.monotonic() + 120.0
-    while not server.started:
-        if time.monotonic() > deadline:
-            raise RuntimeError("server did not start")
-        time.sleep(0.1)
-
-    async def client() -> dict[str, Any]:
-        url = f"ws://127.0.0.1:{port}/ws"
-        async with websockets.connect(url, max_size=None) as websocket:
+    async def client(host: str) -> dict[str, Any]:
+        async with websockets.connect(f"ws://{host}/ws", max_size=None) as websocket:
             initial = canonical(json.loads(await websocket.recv()))
             async with httpx.AsyncClient() as http:
                 response = await http.post(
-                    f"http://127.0.0.1:{port}/intent/add-vertiport",
-                    json=VERTIPORT_POINT,
+                    f"http://{host}/intent/add-vertiport", json=VERTIPORT_POINT
                 )
                 response.raise_for_status()
             received = 0
@@ -200,8 +216,5 @@ def observe_websocket_after_intent(wait_seconds: float = 3.0) -> dict[str, Any]:
                 pass
         return {"initial": initial, "messages_after_intent": received}
 
-    try:
-        return asyncio.run(client())
-    finally:
-        server.should_exit = True
-        thread.join(timeout=10)
+    with served() as host:
+        return asyncio.run(client(host))
