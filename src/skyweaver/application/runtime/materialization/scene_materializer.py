@@ -1,28 +1,14 @@
-from dataclasses import dataclass
-
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import json
 
-from geopandas import GeoDataFrame
 import geopandas as gpd
-from shapely.geometry import LineString
+from geopandas import GeoDataFrame
+from shapely.geometry import LineString, Point
 
-
-from skyweaver.core.logistics.parcel import Parcel
 from skyweaver.model.routes import Routes
 from skyweaver.model.sites import Heliports, Vertiports
 from skyweaver.units.domain.frame.domain import Domain
-from skyweaver.units.domain.logistics.domain_parcel import DomainParcel
-from skyweaver.units.geodata_domain_alignment.logistics.vertiports_parcel import (
-    VertiportsParcel,
-)
-from skyweaver.units.geodata_domain_alignment.logistics.heliports_parcel import (
-    HeliportsParcel,
-)
 from skyweaver.units.hexgrid.structure.hexgrid import HexGrid
-from skyweaver.units.routes.logistics.routes_parcel import RoutesParcel
-from skyweaver.units.hexgrid.logistics.grid_parcel import GridParcel
-from shapely.geometry import Point
 
 
 @dataclass(frozen=True)
@@ -54,10 +40,10 @@ class TransportScene:
 
 class SceneMaterializer:
     """
-    Materializes runtime synchronization state into GIS-ready scene snapshots.
+    Materializes the values of the flow into GIS-ready scene snapshots.
 
     Responsibilities:
-    - consume synchronized runtime parcels;
+    - consume the domain, heliports, vertiports, routes and grid values;
     - project internal operational state into geographic representations;
     - transform local continuous coordinates into GIS-compatible layers;
     - build frontend-oriented spatial scene snapshots;
@@ -69,12 +55,12 @@ class SceneMaterializer:
 
     The generated scene is intentionally detached from:
         - hexagonal discretization internals;
-        - parcel synchronization semantics;
+        - the Reed session that produced the values;
         - operational units;
         - routing implementation details.
 
     Pipeline:
-        Runtime Parcels
+        Flow values
             ↓
         Local Continuous Geometry
             ↓
@@ -98,7 +84,7 @@ class SceneMaterializer:
 
     Notes:
     - Frontend consumers should interact with SceneSnapshot and MapLayer,
-      never directly with parcels or hex structures.
+      never directly with flow values or hex structures.
     - GeoDataFrames are currently used as the intermediate GIS boundary.
     - Serialization and transport concerns are intentionally external
       to this class.
@@ -150,46 +136,6 @@ class SceneMaterializer:
         transport_scene = self.serialize_scene(scene)
 
         return asdict(transport_scene)
-
-    def materialize(
-        self, pallet: dict[type[Parcel], Parcel], outpost: RuntimeOutpost
-    ) -> SceneSnapshot:
-
-        domain_parcel = pallet.get(DomainParcel)
-        grid_parcel = pallet.get(GridParcel)
-        heliports_parcel = pallet.get(HeliportsParcel)
-        vertiports_parcel = pallet.get(VertiportsParcel)
-        routes_parcel = pallet.get(RoutesParcel)
-
-            if isinstance(parcel, VertiportsParcel):
-                layers.append(self._build_vertiports_layer(parcel, outpost))
-
-        has_routes = isinstance(routes_parcel, RoutesParcel) and isinstance(
-            grid_parcel, GridParcel
-        )
-
-        return self.materialize_values(
-            domain=domain_parcel.domain,
-            heliports=(
-                Heliports(points=tuple(heliports_parcel.heliports))
-                if isinstance(heliports_parcel, HeliportsParcel)
-                else None
-            ),
-            vertiports=(
-                Vertiports(points=tuple(vertiports_parcel.vertiports))
-                if isinstance(vertiports_parcel, VertiportsParcel)
-                else None
-            ),
-            routes=(
-                Routes(
-                    routes_graph=routes_parcel.routes_graph,
-                    terminals_graph=routes_parcel.terminals_graph,
-                )
-                if has_routes
-                else None
-            ),
-            grid=grid_parcel.grid if has_routes else None,
-        )
 
     def materialize_values(
         self,

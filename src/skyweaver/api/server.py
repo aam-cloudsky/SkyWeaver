@@ -47,13 +47,13 @@ class RemoveVertiportPayload(BaseModel):
 # IMPORTANT ARCHITECTURAL NOTE
 # ======================================================
 #
-# Parcels are NOT serialized as raw runtime objects.
+# Flow values are NOT serialized as raw runtime objects.
 #
 # The frontend must receive frontend-safe projections only.
 #
 # Example:
 # - HexGrid itself should never be transmitted.
-# - Instead, parcels expose projected representations:
+# - Instead, the scene exposes projected representations:
 #     - restricted cells
 #     - routes
 #     - terminals

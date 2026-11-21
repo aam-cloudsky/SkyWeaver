@@ -4,7 +4,6 @@ from typing import Iterable, List
 from typing import Dict, List
 import igraph as ig
 
-from skyweaver.core.logistics.depot import Depot
 from itertools import combinations
 
 

@@ -13,14 +13,11 @@ from skyweaver.application.runtime.application_context import (
 from skyweaver.application.runtime.application_runtime import (
     ApplicationRuntime,
 )
-from skyweaver.core.logistics.depot import Depot
 
 CONFIG_PATH = (Path(__file__).parent / "config.yaml").resolve()
 
 
 def main() -> None:
-
-    Depot()
 
     runtime = ApplicationRuntime(
         config_path=str(CONFIG_PATH),

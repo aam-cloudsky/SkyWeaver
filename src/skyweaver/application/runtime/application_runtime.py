@@ -62,6 +62,12 @@ class ApplicationRuntime:
 
         return self._materializer.serialize_scene_to_dict(self._scene)
 
+    @property
+    def trace(self):
+        """Reed's execution trace of the session (bounded ring buffer)."""
+
+        return self._session.trace
+
     def snapshot(self):
         """The current values of the flow (a Reed snapshot, read only)."""
 

@@ -7,26 +7,27 @@ Recomputation experiment for the SIGE 2026 revision (Reviewer 1, item 1):
      full recomputation. This turns 'controlled recomputation' from
      assertion into result."
 
-What this measures, using the real bootstrap sequence of
-`ApplicationRuntime._bootstrap_units()` (7 operational units: YAMLLoader,
-Sources, Domain, Alignment, HexGrid, Restriction, Routes) and the three
-real frontend-facing intent handlers
-(src/skyweaver/application/handlers/*_handler.py):
+What this measures, on the Reed flow of `skyweaver.flow` (13 nodes:
+load_configuration, load_geodata, build_domain, align_heliports,
+align_vertiports, build_grid, locate_heliport_cells,
+filter_candidate_vertiports, apply_vertiport_edits, restrict_cells,
+build_airspace_graph, compute_routes, materialize_scene) and the three real
+frontend-facing intent handlers (src/skyweaver/application/handlers/):
 
   - full recompute (baseline): cold-start the whole ApplicationRuntime.
-    All 7 units run. nodes_reexecuted == nodes_total == 7.
+    Every node runs once. nodes_reexecuted == nodes_total == 13.
 
   - selective recompute (the architectural claim): starting from an
     already-initialized runtime, dispatch one intent
-    (ToggleRestriction / AddVertiport / RemoveVertiport). Reading the
-    handler source directly (not assumed): every handler ends with a
-    single call, `self.context.units.routes.run()` -- exactly one of the
-    7 units re-executes. nodes_reexecuted == 1, nodes_total == 7.
+    (ToggleRestriction / AddVertiport / RemoveVertiport). The nodes that
+    re-execute are counted from Reed's execution trace (`node_started`
+    events), not assumed.
+
+The version published at SIGE 2026 measured the old core (7 units, one
+re-executed per intent); it is the tag `paper-sige2026-camera-ready`.
 
 Each trial runs in its own subprocess (invoked with --mode trial) to get
-a true cold measurement -- repeated Depot()/ApplicationRuntime() calls
-inside one long-lived process were found to accumulate MessageHub/Depot
-registration overhead across iterations, which would bias timings.
+a true cold measurement.
 
 Usage:
     python3 experiments.py                 # runs everything, --repeats 5
@@ -49,9 +50,8 @@ REPO_ROOT = Path(__file__).resolve().parent
 SRC_DIR = REPO_ROOT / "src"
 CONFIG_PATH = REPO_ROOT / "examples" / "droneport_experiment" / "config.yaml"
 
-# The 7 units that make up ApplicationRuntime._bootstrap_units():
-# yaml, sources, domain, alignment, grid, restriction, routes.
-TOTAL_UNITS = 7
+# The 13 nodes of the flow (skyweaver.flow.NODES).
+TOTAL_NODES = 13
 
 # NOTE: an earlier version of this script used a fixed probe coordinate
 # (the Rio de Janeiro map center used by the frontend). That point fell
@@ -65,32 +65,41 @@ TOTAL_UNITS = 7
 PROBE_OFFSET_METERS = 3000.0
 
 
+def _started(runtime, before: set[str]) -> int:
+    """How many nodes started since the trace held the ids in `before`."""
+
+    return sum(
+        1
+        for event in runtime.trace.events
+        if event.event_type == "node_started" and event.node_execution_id not in before
+    )
+
+
 def _run_full_trial() -> dict:
-    """Cold-starts the whole ApplicationRuntime. All 7 units run once."""
+    """Cold-starts the whole ApplicationRuntime. Every node runs once."""
     import io
     import contextlib
 
     sys.path.insert(0, str(SRC_DIR))
-    from skyweaver.core.logistics.depot import Depot
     from skyweaver.application.runtime.application_runtime import (
         ApplicationRuntime,
     )
+    from skyweaver.model import Routes
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        Depot()
         t0 = time.perf_counter()
         runtime = ApplicationRuntime(config_path=str(CONFIG_PATH))
         elapsed = time.perf_counter() - t0
 
-    routes_graph = runtime.units.routes._outpost.routes_parcel.routes_graph
+    routes = runtime.snapshot()[Routes]
 
     return {
         "intent": "full_recompute",
         "elapsed_seconds": elapsed,
-        "nodes_reexecuted": TOTAL_UNITS,
-        "nodes_total": TOTAL_UNITS,
-        "paths_after": len(routes_graph.paths),
+        "nodes_reexecuted": _started(runtime, set()),
+        "nodes_total": TOTAL_NODES,
+        "paths_after": len(routes.routes_graph.paths),
     }
 
 
@@ -103,7 +112,6 @@ def _run_intent_trial(intent_name: str) -> dict:
     import contextlib
 
     sys.path.insert(0, str(SRC_DIR))
-    from skyweaver.core.logistics.depot import Depot
     from skyweaver.application.runtime.application_runtime import (
         ApplicationRuntime,
     )
@@ -126,31 +134,30 @@ def _run_intent_trial(intent_name: str) -> dict:
     from skyweaver.application.handlers.remove_vertiport_handler import (
         RemoveVertiportHandler,
     )
+    from skyweaver.model import HeliportCells, Routes, Vertiports
+    from skyweaver.units.domain.frame.domain import Domain
+    from skyweaver.units.hexgrid.structure.hexgrid import HexGrid
     from shapely.geometry import Point as ShapelyPoint
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        Depot()
         runtime = ApplicationRuntime(config_path=str(CONFIG_PATH))
         context = ApplicationContext(runtime=runtime)
 
-    routes_graph_before = runtime.units.routes._outpost.routes_parcel.routes_graph
-    paths_before = len(routes_graph_before.paths)
-    vertiports_before = len(
-        runtime.units.routes._outpost.vertiports_parcel.vertiports
-    )
+    snapshot = runtime.snapshot()
+    paths_before = len(snapshot[Routes].routes_graph.paths)
+    vertiports_before = len(snapshot[Vertiports].points)
 
-    domain = runtime.units.domain._outpost.domain_parcel.domain
-    grid = runtime.units.grid._outpost.grid_parcel.grid
-    heliports = runtime.units.alignment._outpost.heliports_parcel.heliports
-    vertiports = runtime.units.routes._outpost.vertiports_parcel.vertiports
+    domain = snapshot[Domain]
+    grid = snapshot[HexGrid]
+    vertiports = snapshot[Vertiports].points
 
     if not vertiports:
         return {
             "intent": intent_name,
             "elapsed_seconds": None,
             "nodes_reexecuted": None,
-            "nodes_total": TOTAL_UNITS,
+            "nodes_total": TOTAL_NODES,
             "error": "no vertiports available",
         }
 
@@ -159,8 +166,8 @@ def _run_intent_trial(intent_name: str) -> dict:
         # offsetting from an existing vertiport's local coordinates, and
         # verify it clears the same checks the real handlers apply
         # (domain bounds, heliport cell, vertiport cell) before using it.
-        heliport_cells = set(grid.get_cell_from_cartesians(heliports))
-        vertiport_cells = set(grid.get_cell_from_cartesians(vertiports))
+        heliport_cells = snapshot[HeliportCells].coords
+        vertiport_cells = {c.coord for c in grid.get_cell_from_cartesians(vertiports)}
         base = vertiports[0]
         probe_local = None
         for dx, dy in (
@@ -174,7 +181,11 @@ def _run_intent_trial(intent_name: str) -> dict:
             if not domain.contains_local_point(candidate):
                 continue
             cell = grid.get_cell_from_cartesian(candidate)
-            if cell is None or cell in heliport_cells or cell in vertiport_cells:
+            if (
+                cell is None
+                or cell.coord in heliport_cells
+                or cell.coord in vertiport_cells
+            ):
                 continue
             probe_local = candidate
             break
@@ -183,13 +194,11 @@ def _run_intent_trial(intent_name: str) -> dict:
                 "intent": intent_name,
                 "elapsed_seconds": None,
                 "nodes_reexecuted": None,
-                "nodes_total": TOTAL_UNITS,
+                "nodes_total": TOTAL_NODES,
                 "error": "no valid in-bounds, non-conflicting probe point found",
             }
         # local_to_geo_coord() returns coordinates in the domain's projected
-        # CRS (metric), not WGS84 -- reproject before building the intent,
-        # which expects geographic latitude/longitude (see the handlers'
-        # own EPSG:4326 GeoDataFrame construction).
+        # CRS (metric), not WGS84 -- reproject before building the intent.
         geo_gdf = domain.local_to_geo_coord([probe_local]).to_crs("EPSG:4326")
         lon, lat = geo_gdf.geometry.iloc[0].x, geo_gdf.geometry.iloc[0].y
 
@@ -201,39 +210,31 @@ def _run_intent_trial(intent_name: str) -> dict:
             intent = AddVertiport(latitude=lat, longitude=lon)
     elif intent_name == "remove_vertiport":
         # Remove a vertiport that is guaranteed to exist: the first one
-        # already loaded from the case-study dataset, converted back to
-        # WGS84 through the same projection the handler expects.
-        target_local_point = vertiports[0]
-        geo_gdf = domain.local_to_geo_coord([target_local_point]).to_crs("EPSG:4326")
+        # of the case-study dataset, converted back to WGS84.
+        geo_gdf = domain.local_to_geo_coord([vertiports[0]]).to_crs("EPSG:4326")
         lon, lat = geo_gdf.geometry.iloc[0].x, geo_gdf.geometry.iloc[0].y
         handler = RemoveVertiportHandler(context)
         intent = RemoveVertiport(latitude=lat, longitude=lon)
     else:
         raise ValueError(f"Unknown intent: {intent_name}")
 
+    before = {event.node_execution_id for event in runtime.trace.events}
     with contextlib.redirect_stdout(buf):
         t0 = time.perf_counter()
         handler(intent)
         elapsed = time.perf_counter() - t0
 
-    routes_graph_after = runtime.units.routes._outpost.routes_parcel.routes_graph
-    paths_after = len(routes_graph_after.paths)
-    vertiports_after = len(
-        runtime.units.routes._outpost.vertiports_parcel.vertiports
-    )
+    snapshot = runtime.snapshot()
 
     return {
         "intent": intent_name,
         "elapsed_seconds": elapsed,
-        # Confirmed by reading the handler source directly: every handler
-        # (toggle_restriction / add_vertiport / remove_vertiport) ends
-        # with exactly one call, `self.context.units.routes.run()`.
-        "nodes_reexecuted": 1,
-        "nodes_total": TOTAL_UNITS,
+        "nodes_reexecuted": _started(runtime, before),
+        "nodes_total": TOTAL_NODES,
         "paths_before": paths_before,
-        "paths_after": paths_after,
+        "paths_after": len(snapshot[Routes].routes_graph.paths),
         "vertiports_before": vertiports_before,
-        "vertiports_after": vertiports_after,
+        "vertiports_after": len(snapshot[Vertiports].points),
     }
 
 
@@ -344,7 +345,7 @@ def main() -> None:
         speedup = full_mean / selective_mean if selective_mean > 0 else float("inf")
         print(
             f"Speedup vs. full recompute ({condition}): {speedup:.1f}x "
-            f"(1/{TOTAL_UNITS} = {100 / TOTAL_UNITS:.1f}% of the pipeline re-executed)"
+            f"({all_results[condition][0]['nodes_reexecuted']}/{TOTAL_NODES} nodes re-executed)"
         )
 
     with open(REPO_ROOT / "experiments" / "recomputation_results.json", "w") as f:

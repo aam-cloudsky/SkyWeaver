@@ -1,9 +1,11 @@
 """restrict_cells gives the cells the old core marked as not traversable.
 
-The old core marked the heliport cells with `set_restricted` (RestrictionUnit)
-and flipped a toggled cell between `set_restricted` and `set_available`
-(ToggleRestrictionHandler). Here the same marks are applied to a fresh grid
-and the non-traversable cells are compared with `restrict_cells`.
+Before the migration each cell carried a state, AVAILABLE or RESTRICTED:
+RestrictionUnit set the heliport cells to RESTRICTED, and
+ToggleRestrictionHandler flipped a toggled cell between the two states.
+`legacy_marks` replays those rules on a dictionary of states (the cell
+state no longer exists) and the restricted cells are compared with
+`restrict_cells`.
 """
 
 from __future__ import annotations
@@ -18,17 +20,16 @@ from skyweaver.units.restriction.restrictions import (
     restrict_cells,
 )
 
+AVAILABLE, RESTRICTED = "AVAILABLE", "RESTRICTED"
+
 
 def legacy_marks(rio, grid: HexGrid, toggles: list[HexCoord]) -> frozenset[HexCoord]:
+    state = {cell.coord: AVAILABLE for cell in grid.iter_domain_cells()}
     for cell in grid.get_cell_from_cartesians(rio.heliports.points):
-        cell.set_restricted()
+        state[cell.coord] = RESTRICTED
     for coord in toggles:
-        cell = grid.get_cell_from_coord(coord)
-        if cell.is_traversable:
-            cell.set_restricted()
-        else:
-            cell.set_available()
-    return frozenset(c.coord for c in grid.iter_domain_cells() if not c.is_traversable)
+        state[coord] = RESTRICTED if state[coord] == AVAILABLE else AVAILABLE
+    return frozenset(coord for coord, value in state.items() if value == RESTRICTED)
 
 
 def free_coords(rio, grid: HexGrid, n: int) -> list[HexCoord]:

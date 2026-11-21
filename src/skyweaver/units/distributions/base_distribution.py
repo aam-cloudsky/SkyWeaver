@@ -1,33 +1,37 @@
-# src/skyweaver/distributions/base_distribution.py
+# src/skyweaver/units/distributions/base_distribution.py
 
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
-import numpy as np
+from typing import List, Optional, Tuple
 
-from skyweaver.distributions.logistics.distribution_outpost import DistributionOutpost
+import numpy as np
+from shapely.geometry import Point
 
 
 class BaseDistribution(ABC):
+    """A generator of UAV and MAV points of interest inside a rectangular domain.
+
+    The generated points are kept on the instance (`domain`, `uav_pois`,
+    `mav_pois`); before the migration to Reed they were written to the old
+    core's depot through a DistributionOutpost.
+    """
+
     def __init__(self, rng: np.random.Generator):
-        # 🔑 Cada Distribution tem sua própria view reativa
-        self._depot_outpost: DistributionOutpost = DistributionOutpost()
         self._rng = rng
+        self._domain: Tuple = ()
+        self._uav_pois: List[Point] = []
+        self._mav_pois: List[Point] = []
 
     @property
     def domain(self) -> Tuple:
-        return self._depot_outpost.airspace_points.domain
+        return self._domain
 
     @property
-    def uav_pois(self):
-        return self._depot_outpost.airspace_points.uav_points
+    def uav_pois(self) -> List[Point]:
+        return self._uav_pois
 
     @property
-    def mav_pois(self):
-        return self._depot_outpost.airspace_points.mav_points
-    
-    @property
-    def outpost(self) -> DistributionOutpost:
-        return self._depot_outpost
+    def mav_pois(self) -> List[Point]:
+        return self._mav_pois
 
     @abstractmethod
     def reset(self, rng: Optional[np.random.Generator] = None):

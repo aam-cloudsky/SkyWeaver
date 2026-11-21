@@ -3,7 +3,6 @@ from typing import Any, ClassVar, Dict, Type, TypeVar, Union, get_origin, get_ar
 from enum import Enum
 
 from skyweaver.model.configuration import Configuration
-from skyweaver.units.yaml_loader.logistics.yaml_parcel import YAMLParcel
 
 T = TypeVar("T", bound="BaseParameters")
 
@@ -14,10 +13,6 @@ class BaseParameters:
     @classmethod
     def from_configuration(cls: Type[T], configuration: Configuration) -> T:
         return cls._from_fields(configuration.fields)
-
-    @classmethod
-    def from_yaml_parcel(cls: Type[T], parcel: YAMLParcel) -> T:
-        return cls._from_fields(parcel.yaml_fields)
 
     @classmethod
     def _from_fields(cls: Type[T], yaml_fields: Any) -> T:

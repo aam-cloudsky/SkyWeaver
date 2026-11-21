@@ -2,8 +2,7 @@ from typing import Optional
 import numpy as np
 from shapely.geometry import Point
 
-from skyweaver.distributions.base_distribution import BaseDistribution
-from skyweaver.distributions.logistics.distribution_outpost import DistributionOutpost
+from skyweaver.units.distributions.base_distribution import BaseDistribution
 
 
 class UAVMAVUAVDistribution(BaseDistribution):
@@ -24,14 +23,12 @@ class UAVMAVUAVDistribution(BaseDistribution):
     ):
         self._n_uav = n_uav
         self._n_mav = n_mav
-        self._domain = domain
+        self._domain_bounds = domain
         self._center_fraction = center_fraction
         self._rng = rng
 
-        # BaseDistribution agora cria sua própria view do Depot
         super().__init__(rng=rng)
 
-        # Gera e escreve no Depot
         self.generate_points()
 
     # ------------------------------------------------------------------
@@ -45,23 +42,18 @@ class UAVMAVUAVDistribution(BaseDistribution):
         self.generate_points()
 
     def generate_points(self):
-        """Gera os pontos UAV e MAV e escreve no Depot."""
+        """Gera os pontos UAV e MAV e os guarda na instância."""
         uav_points = self.generate_uav_pois(
-            self._n_uav, self._domain, self._rng
+            self._n_uav, self._domain_bounds, self._rng
         )
         mav_points = self.generate_mav_pois(
-            self._n_mav, self._domain, self._center_fraction, self._rng
+            self._n_mav, self._domain_bounds, self._center_fraction, self._rng
         )
 
         print(f"Generated {len(uav_points)} UAV points and {len(mav_points)} MAV points.")
-        # 🔑 Escrita correta: via Outpost → Depot
-        with DistributionOutpost() as outpost:
-            ap = outpost.airspace_points
-            ap.domain = self._domain
-            ap.uav_points = uav_points
-            ap.mav_points = mav_points
-
-        print(f"{DistributionOutpost().airspace_points.uav_points}")
+        self._domain = self._domain_bounds
+        self._uav_pois = uav_points
+        self._mav_pois = mav_points
 
     # --------------------------------------------------
     # Geradores de POIs
