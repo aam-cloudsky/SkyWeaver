@@ -56,7 +56,7 @@ def _build_single_linkage_hac_pairs(
         a = terminals[u]
         b = terminals[v]
 
-        pair = (a, b) if id(a) < id(b) else (b, a)
+        pair = (a, b) if (a.coord.q, a.coord.r) <= (b.coord.q, b.coord.r) else (b, a)
         pairs.add(pair)
 
     return pairs
@@ -121,7 +121,7 @@ def _build_paths(
     paths: List[List[HexCell]] = []
     weights: list[float] = Routing.obtain_edges_weights(airspace_graph)
 
-    for a, b in pairs:
+    for a, b in sorted(pairs, key=lambda p: (p[0].coord.q, p[0].coord.r, p[1].coord.q, p[1].coord.r)):
         if a not in airspace_graph._cell_to_vid or b not in airspace_graph._cell_to_vid:
             continue
 

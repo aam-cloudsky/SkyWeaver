@@ -112,7 +112,7 @@ class Routing:
 
             for b in neighbors[:k]:
 
-                pair = (a, b) if id(a) < id(b) else (b, a)
+                pair = (a, b) if (a.coord.q, a.coord.r) <= (b.coord.q, b.coord.r) else (b, a)
                 pairs.add(pair)
 
         return pairs
@@ -183,7 +183,7 @@ class Routing:
 
             a, b = best_pair
 
-            pair = (a, b) if id(a) < id(b) else (b, a)
+            pair = (a, b) if (a.coord.q, a.coord.r) <= (b.coord.q, b.coord.r) else (b, a)
             pairs.add(pair)
 
             adjacency[a].add(b)
