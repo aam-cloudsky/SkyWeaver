@@ -1,0 +1,43 @@
+{
+ "config": "examples/droneport_experiment/config.yaml",
+ "decimals": 9,
+ "steps": [
+  {
+   "endpoint": null,
+   "payload": null,
+   "step": "00_startup"
+  },
+  {
+   "endpoint": "/intent/add-vertiport",
+   "payload": {
+    "latitude": -22.9,
+    "longitude": -43.4
+   },
+   "step": "01_add_vertiport"
+  },
+  {
+   "endpoint": "/intent/remove-vertiport",
+   "payload": {
+    "latitude": -22.9,
+    "longitude": -43.4
+   },
+   "step": "02_remove_vertiport"
+  },
+  {
+   "endpoint": "/intent/toggle-restriction",
+   "payload": {
+    "latitude": -22.903826262966408,
+    "longitude": -43.2654493466201
+   },
+   "step": "03_toggle_restriction"
+  },
+  {
+   "endpoint": "/intent/toggle-restriction",
+   "payload": {
+    "latitude": -22.903826262966408,
+    "longitude": -43.2654493466201
+   },
+   "step": "04_toggle_restriction_again"
+  }
+ ]
+}

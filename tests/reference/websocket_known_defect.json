@@ -1,0 +1,12 @@
+{
+ "initial_scene_equals_00_startup": true,
+ "intent": {
+  "endpoint": "/intent/add-vertiport",
+  "payload": {
+   "latitude": -22.9,
+   "longitude": -43.4
+  }
+ },
+ "known_defect": "KNOWN DEFECT: the intent endpoints run in a worker thread with no event loop, so SkyWeaverBackend._on_scene_update fails in asyncio.create_task and no scene reaches the WebSocket after an intent. The issue that fixes it inverts this record and test_websocket_known_defect_no_scene_after_intent.",
+ "messages_after_intent": 0
+}
