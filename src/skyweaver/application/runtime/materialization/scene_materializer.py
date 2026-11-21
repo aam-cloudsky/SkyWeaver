@@ -8,8 +8,9 @@ import geopandas as gpd
 from shapely.geometry import LineString
 
 
-from skyweaver.application.runtime.logistics.runtime_outpost import RuntimeOutpost
-from skyweaver.core.logistics.parcel.parcel import Parcel
+from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.model.routes import Routes
+from skyweaver.model.sites import Heliports, Vertiports
 from skyweaver.units.domain.frame.domain import Domain
 from skyweaver.units.domain.logistics.domain_parcel import DomainParcel
 from skyweaver.units.geodata_domain_alignment.logistics.vertiports_parcel import (
@@ -154,71 +155,82 @@ class SceneMaterializer:
         self, pallet: dict[type[Parcel], Parcel], outpost: RuntimeOutpost
     ) -> SceneSnapshot:
 
-        layers: list[MapLayer] = []
-
-        for parcel_type, parcel in pallet.items():
-            if isinstance(parcel, HeliportsParcel):
-                layers.append(self._build_heliports_layer(parcel, outpost))
+        domain_parcel = pallet.get(DomainParcel)
+        grid_parcel = pallet.get(GridParcel)
+        heliports_parcel = pallet.get(HeliportsParcel)
+        vertiports_parcel = pallet.get(VertiportsParcel)
+        routes_parcel = pallet.get(RoutesParcel)
 
             if isinstance(parcel, VertiportsParcel):
                 layers.append(self._build_vertiports_layer(parcel, outpost))
 
-            if isinstance(parcel, RoutesParcel):
-                layers.append(self._build_routes_layer(parcel, outpost))
+        has_routes = isinstance(routes_parcel, RoutesParcel) and isinstance(
+            grid_parcel, GridParcel
+        )
+
+        return self.materialize_values(
+            domain=domain_parcel.domain,
+            heliports=(
+                Heliports(points=tuple(heliports_parcel.heliports))
+                if isinstance(heliports_parcel, HeliportsParcel)
+                else None
+            ),
+            vertiports=(
+                Vertiports(points=tuple(vertiports_parcel.vertiports))
+                if isinstance(vertiports_parcel, VertiportsParcel)
+                else None
+            ),
+            routes=(
+                Routes(
+                    routes_graph=routes_parcel.routes_graph,
+                    terminals_graph=routes_parcel.terminals_graph,
+                )
+                if has_routes
+                else None
+            ),
+            grid=grid_parcel.grid if has_routes else None,
+        )
+
+    def materialize_values(
+        self,
+        domain: Domain,
+        heliports: Heliports | None,
+        vertiports: Vertiports | None,
+        routes: Routes | None,
+        grid: HexGrid | None,
+    ) -> SceneSnapshot:
+        """The heliports, vertiports and routes layers, in this order."""
+
+        layers: list[MapLayer] = []
+
+        if heliports is not None:
+            layers.append(self._points_layer("heliports", domain, heliports.points))
+
+        if vertiports is not None:
+            layers.append(self._points_layer("vertiports", domain, vertiports.points))
+
+        if routes is not None and grid is not None:
+            layers.append(self._build_routes_layer(domain, grid, routes))
 
         return SceneSnapshot(layers=layers)
 
-    def _build_vertiports_layer(
-        self, vertiports_parcel: VertiportsParcel, outpost: RuntimeOutpost
-    ) -> MapLayer:
-        snapped_points = []
-        grid = outpost.grid_parcel.grid
-        domain = outpost.domain_parcel.domain
-
-        for point in vertiports_parcel.vertiports:
-            cell = grid.get_cell_from_cartesian(point)
-            if cell is None:
-                continue
-
-            snapped_points.append(grid.cartesian_cell_center(cell))
-
-        gdf = domain.local_to_geo_coord(snapped_points)
-
+    def _points_layer(self, layer_id: str, domain: Domain, points) -> MapLayer:
         return MapLayer(
-            id="vertiports",
+            id=layer_id,
             geometry_type="Point",
             crs=domain.crs.to_string(),
-            geodata=gdf,
-        )
-
-    def _build_heliports_layer(
-        self,
-        heliports_parcel: HeliportsParcel,
-        runtime_outpost: RuntimeOutpost,
-    ) -> MapLayer:
-        domain = runtime_outpost.domain_parcel.domain
-        heliports = heliports_parcel.heliports
-        gdf = domain.local_to_geo_coord(heliports)
-
-        return MapLayer(
-            id="heliports",
-            geometry_type="Point",
-            crs=domain.crs.to_string(),
-            geodata=gdf,
+            geodata=domain.local_to_geo_coord(list(points)),
         )
 
     def _build_routes_layer(
         self,
-        routes_parcel: RoutesParcel,
-        runtime_outpost: RuntimeOutpost,
+        domain: Domain,
+        grid: HexGrid,
+        routes: Routes,
     ) -> MapLayer:
         rows = []
 
-        domain = runtime_outpost.domain_parcel.domain
-        grid = runtime_outpost.grid_parcel.grid
-
-        for route_index, path in enumerate(routes_parcel.routes_graph.paths):
-
+        for route_index, path in enumerate(routes.routes_graph.paths):
             if len(path) < 2:
                 continue
 
@@ -264,3 +276,21 @@ class SceneMaterializer:
             crs=domain.crs.to_string(),
             geodata=gdf,
         )
+
+
+def materialize_scene(
+    domain: Domain,
+    heliports: Heliports,
+    vertiports: Vertiports,
+    routes: Routes,
+    grid: HexGrid,
+) -> SceneSnapshot:
+    """The scene the frontend draws: heliports, vertiports and routes layers."""
+
+    return SceneMaterializer().materialize_values(
+        domain=domain,
+        heliports=heliports,
+        vertiports=vertiports,
+        routes=routes,
+        grid=grid,
+    )

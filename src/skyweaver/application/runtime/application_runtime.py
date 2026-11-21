@@ -8,7 +8,10 @@ from skyweaver.application.runtime.materialization.scene_materializer import (
     SceneSnapshot,
 )
 from skyweaver.application.runtime.runtime_units import RuntimeUnits
-from skyweaver.core.logistics.parcel.parcel import Parcel
+from skyweaver.core.logistics.parcel import Parcel
+from skyweaver.model.sites import CandidateVertiports, Heliports
+from skyweaver.units.restriction.restrictions import locate_heliport_cells
+from skyweaver.units.routes.vertiports import filter_candidate_vertiports
 
 
 class ApplicationRuntime:
@@ -88,20 +91,15 @@ class ApplicationRuntime:
         heliports = self.units.alignment._outpost.heliports_parcel.heliports
         vertiports = self.units.alignment._outpost.vertiports_parcel.vertiports
 
-        heliport_cells = set(grid.get_cell_from_cartesians(heliports))
-
-        filtered_vertiports = []
-        for point in vertiports:
-            cell = grid.get_cell_from_cartesian(point)
-            if cell is None:
-                continue
-            if cell in heliport_cells:
-                continue
-            filtered_vertiports.append(point)
+        base = filter_candidate_vertiports(
+            CandidateVertiports(points=tuple(vertiports)),
+            locate_heliport_cells(Heliports(points=tuple(heliports)), grid),
+            grid,
+        )
 
         with self.units.alignment._outpost:
-            self.units.alignment._outpost.vertiports_parcel.vertiports = (
-                filtered_vertiports
+            self.units.alignment._outpost.vertiports_parcel.vertiports = list(
+                base.points
             )
 
     # ======================================================

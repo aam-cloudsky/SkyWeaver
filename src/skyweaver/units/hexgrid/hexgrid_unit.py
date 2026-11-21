@@ -1,9 +1,9 @@
 from typing import Optional
 
 from skyweaver.core.operations.operational_unit import OperationalUnit
+from skyweaver.units.hexgrid.grid_construction import build_grid
 from skyweaver.units.hexgrid.logistics.grid_outpost import GridOutpost
-from skyweaver.units.hexgrid.structure.hexgrid import HexGrid
-from skyweaver.units.hexgrid.parameters.grid_parameters import GridParameters
+from skyweaver.units.yaml_loader.parcel_conversion import configuration_of
 
 
 class HexGridUnit(OperationalUnit[GridOutpost]):
@@ -14,25 +14,12 @@ class HexGridUnit(OperationalUnit[GridOutpost]):
 
     def run(self):
 
-        self._parameters: GridParameters = GridParameters.from_yaml_parcel(
-            self._outpost.yaml_parcel
-        )
-
-        domain_parcel = self._outpost.domain_parcel
-        domain = domain_parcel.domain  # ✅ extract Domain object
+        domain = self._outpost.domain_parcel.domain
 
         if domain is None:
             raise ValueError("HexGridUnit requires a valid Domain instance.")
 
-        bounds = domain.operational_bounds  # ✅ correct level
-
-        parameters = GridParameters.from_yaml_parcel(self._outpost.yaml_parcel)
-
-        grid = HexGrid(
-            cell_size=parameters.cell_size,
-            operational_bounds=bounds,
-            orientation=parameters.orientation,
-        )
+        grid = build_grid(domain, configuration_of(self._outpost.yaml_parcel))
 
         with self._outpost:
             self._outpost.grid_parcel.grid = grid

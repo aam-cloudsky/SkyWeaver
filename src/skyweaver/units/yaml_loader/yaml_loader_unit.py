@@ -1,9 +1,10 @@
-from skyweaver.core.operations.operational_unit import OperationalUnit
-import yaml
+from pathlib import Path
 
+from skyweaver.core.operations.operational_unit import OperationalUnit
+from skyweaver.model.configuration import ConfigPath
+from skyweaver.units.yaml_loader.configuration import load_configuration
 from skyweaver.units.yaml_loader.logistics.yaml_outpost import YAMLOutpost
 from skyweaver.units.yaml_loader.logistics.yaml_parcel import YAMLParcel
-from pathlib import Path
 
 
 class YAMLLoaderUnit(OperationalUnit[YAMLOutpost]):
@@ -14,13 +15,10 @@ class YAMLLoaderUnit(OperationalUnit[YAMLOutpost]):
 
     def run(self):
 
-        config_path = Path(self._yaml_path).resolve()
-
-        with open(config_path, "r") as f:
-            data = yaml.safe_load(f) or {}
+        configuration = load_configuration(ConfigPath(Path(self._yaml_path)))
 
         with self._outpost:
             self._outpost.yaml_parcel = YAMLParcel(
-                yaml_fields=data,
-                config_dir=config_path.parent,
+                yaml_fields=dict(configuration.fields),
+                config_dir=configuration.config_dir,
             )

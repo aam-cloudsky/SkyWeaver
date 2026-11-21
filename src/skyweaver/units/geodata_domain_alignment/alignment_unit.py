@@ -1,18 +1,18 @@
 from typing import Optional
 
 from skyweaver.core.operations.operational_unit import OperationalUnit
+from skyweaver.model.sites import SourceGeoData
+from skyweaver.units.geodata_domain_alignment.alignment import (
+    align_heliports,
+    align_vertiports,
+)
 from skyweaver.units.geodata_domain_alignment.logistics.alignment_outpost import (
     GDProjectionOutpost,
 )
 
 
 class AlignmentUnit(OperationalUnit[GDProjectionOutpost]):
-    """
-    A AlignmentUnit is a specialized OperationalUnit that focuses on geodata domain alignment operations and logic.
-    It serves as a foundational building block for units that require geodata domain alignment functionality,
-    such as handling geodata-specific data, implementing geodata-specific algorithms, or managing
-    geodata-specific interactions within the system.
-    """
+    """Expresses the heliports and vertiports in the local frame of the domain."""
 
     def __init__(self, outpost: Optional[GDProjectionOutpost] = None):
         if outpost is None:
@@ -28,11 +28,14 @@ class AlignmentUnit(OperationalUnit[GDProjectionOutpost]):
         if domain is None:
             raise ValueError("AlignmentUnit requires a valid Domain instance.")
 
-        # ---- Heliports ----
-        aligned_heliports = domain.to_local(raw_geodata.heliports)
-        aligned_vertiports = domain.to_local(raw_geodata.vertiports)
+        geodata = SourceGeoData(
+            heliports=raw_geodata.heliports, vertiports=raw_geodata.vertiports
+        )
 
-        # Publish aligned data
         with self._outpost:
-            self._outpost.heliports_parcel.heliports = aligned_heliports
-            self._outpost.vertiports_parcel.vertiports = aligned_vertiports
+            self._outpost.heliports_parcel.heliports = list(
+                align_heliports(geodata, domain).points
+            )
+            self._outpost.vertiports_parcel.vertiports = list(
+                align_vertiports(geodata, domain).points
+            )
