@@ -8,16 +8,14 @@ This repository accompanies the paper *"SkyWeaver: A Reactive Command-and-Contro
 
 ## What is SkyWeaver?
 
-SkyWeaver explores how a Command-and-Control platform can maintain a consistent, traceable representation of urban airspace—heliports, droneport candidates, restrictions, and routing—as that representation continuously changes. Instead of recomputing the entire operational picture on every change, SkyWeaver tracks dependencies between artifacts explicitly and re-executes only the units affected by a given mutation.
+For a deeper explanation of the runtime architecture, GIS boundaries, scene materialization pipeline, and frontend/backend design philosophy, see:
 
-The architecture is organized around four mechanisms:
+```text
+project_description.md
+src/skyweaver/application/read-me.md
+```
 
-- **Dependency Management** — an explicit data-flow graph connecting producer-consumer units, so that only the subgraph affected by a change is re-executed.
-- **Shared-State Synchronization** — a single authoritative repository, with nodes registering typed contracts for the state they consume, mutate, and produce.
-- **Bus Coordination** — a synchronous, split-phase communication protocol that makes every request, reply, and broadcast observable and causally traceable.
-- **Geospatial Scene Projection** — materializes the synchronized state into an interactive GIS scene, decoupled from the backend's internal computation.
-
-A case study built around the Rio de Janeiro metropolitan region validates this organization: heliports (DECEA registry), droneport candidates (ABRASCE shopping centers), a Single-Linkage HAC backbone over a hexagonal navigable-airspace grid, and operational restrictions are integrated into a single runtime. A controlled-recomputation experiment shows that mutating a single intent re-executes only one of seven operational units.
+The computation runs on [Reed](https://github.com/aam-cloudsky/Reed) 2.0.0: `src/skyweaver/flow.py` declares it as a Reed flow of thirteen functions (see "🧩 Computation as a Reed flow" below).
 
 ---
 
@@ -45,10 +43,11 @@ Current state:
 
 ### Backend
 - Python
+- Reed (reactive flow of typed values)
 - FastAPI
 - GeoPandas
 - Shapely
-- NetworkX
+- igraph
 
 ### Frontend
 - Vue 3
@@ -72,9 +71,20 @@ uv venv --python 3.12 .venv
 
 ### 2️⃣ Install backend dependencies
 
+SkyWeaver depends on Reed, pinned to `git+https://github.com/aam-cloudsky/Reed.git@v2.0.0`. Your GitHub credentials must give read access to that repository while it is private.
+
 ```bash
-uv pip install --python .venv/bin/python3.12 -e .
+uv pip install --python .venv/bin/python3.12 -e ".[dev]"
 ```
+
+To work on Reed and SkyWeaver together, install Reed from the sibling checkout first:
+
+```bash
+uv pip install --python .venv/bin/python3.12 -e ../Reed
+uv pip install --python .venv/bin/python3.12 -e ".[dev]"
+```
+
+`poetry.lock` must be regenerated with `poetry lock` after a dependency change (Render installs with `pip install -e .` and does not read it).
 
 ### 3️⃣ Install frontend dependencies
 
@@ -92,18 +102,48 @@ cd ..
 
 This starts the backend runtime, the FastAPI/WebSocket server, and the frontend development server.
 
+### 5️⃣ Run the tests
+
+```bash
+.venv/bin/python3.12 -m pytest
+.venv/bin/python3.12 tools/record_reference_scenes.py --check-determinism
+```
+
+The suite compares the scene after each step of a reference sequence (startup, add a vertiport, remove it, toggle a restriction, toggle it back) with the files in `tests/reference/`, recorded before the migration to Reed. GitHub Actions runs the same commands on every push (`.github/workflows/ci.yml`); while Reed is private, the repository secret `REED_READ_TOKEN` must hold a read-only token for it.
+
+Known defect: no scene reaches the WebSocket after an intent (the intent endpoints run in a worker thread and `asyncio.create_task` fails there), so the map updates only after a reload. `test_websocket_known_defect_no_scene_after_intent` records it; the next issue fixes it.
+
+---
+
+## 🧩 Computation as a Reed flow
+
+Each step is a function of typed, immutable values (`src/skyweaver/model/`). Reed runs a function when its inputs change and keeps the latest value of each type.
+
+```text
+ConfigPath → Configuration → SourceGeoData → Domain → HexGrid
+Heliports, CandidateVertiports            (aligned to the domain)
+HeliportCells                             (cells holding a heliport)
+BaseVertiports                            (candidates off heliport cells)
+Vertiports        ← VertiportEdits        (fed by add / remove intents)
+RestrictedCells   ← RestrictionToggles    (fed by the toggle intent)
+AirspaceGraphPack → Routes → SceneSnapshot
+```
+
+`ApplicationRuntime` owns the Reed session. Each intent is one transaction under a lock: read the snapshot, decide the value to feed (`application/handlers/intent_rules.py`), feed, push, read the scene, notify subscribers.
+
 ---
 
 ## Roadmap
 
 Planned directions (see also the Future Work section of the SIGE 2026 paper):
 
-- Interactive frontend controls for issuing intents directly from the geospatial scene.
-- Artifact versioning, so each produced artifact retains a history of prior states.
-- Configurable invalidation policies (single-dependency vs. all-dependencies triggers).
-- A human-in-the-loop confirmation step preceding execution.
-- Persistence of complete state snapshots to construct and compare planning scenarios.
-- An auditability and reproducibility mechanism built on structured provenance records.
+- reactive GIS scene streaming;
+- frontend scene rendering;
+- vertiport visualization;
+- interactive vertiport insertion;
+- selective recomputation (only the functions whose inputs changed run);
+- hexagonal operational discretization;
+- local projected operational runtime.
 
 ---
 
@@ -120,7 +160,12 @@ If you use this work, please cite:
 }
 ```
 
-*(fill in volume/pages/DOI once the proceedings are indexed)*
+This keeps the frontend isolated from:
+
+- runtime internals;
+- hexagonal discretization internals;
+- routing graph internals;
+- local operational coordinate systems.
 
 ---
 
@@ -146,5 +191,4 @@ This is an active research prototype maintained by a single contributor. Issues 
 ## TODOs: 
 
 1. Refactor the GraphBuilder to avoid code duplication and improve maintainability. The current implementation has several similar patterns that can be abstracted into helper methods or a more generic graph construction approach.
-2. The class Routing seems a bit odd, once it Routes Unit is already called route. Maybe it should be renamed to something like RoutePlanner or RouteCalculator, to avoid confusion with the unit name and to better reflect its purpose.
-3. In Grid, cluster should have. a role like optional consumed, where it is verified if exists and then consumed, instead of being mandatory. This would allow for more flexible grid configurations and better error handling when clusters are not present. THerefore, we should add Sentinels functionality to understand the diference between CONSUMED and OPTIONAL CONSUMED.
+2. The class Routing could be renamed to something like RoutePlanner or RouteCalculator, to better reflect its purpose next to `compute_routes`.

@@ -1,3 +1,5 @@
+> **Status (2026-11-21).** The Depot / Outpost / Parcel core and the operational units described in this document were replaced by a Reed 2.0.0 flow (issue 6). The computation is now `src/skyweaver/flow.py`, its values are `src/skyweaver/model/`, and the runtime is described in `src/skyweaver/application/read-me.md`. The sections on the old core describe the version published at SIGE 2026 (tag `paper-sige2026-camera-ready`).
+
 Você não está perdido no sentido ruim. Você está esbarrando numa distinção que realmente precisa ser formalizada: `unit`, `layer`, `scenario`, `parcel` não são a mesma coisa, e hoje parte da confusão vem de o código já ter uma mecânica forte para `units`, mas ainda não ter uma mecânica explícita para `layers`.
 
 O ponto central é este:
