@@ -215,7 +215,7 @@ onMounted(async () => {
   const connectWebSocket = () => {
 
     websocket = new WebSocket(
-      'ws://127.0.0.1:8000/ws'
+      `${import.meta.env.VITE_WS_BASE_URL}/ws`
     )
 
     websocket.onopen = () => {

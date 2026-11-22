@@ -16,6 +16,10 @@ eggs/
 .eggs/
 lib/
 lib64/
+
+# frontend (Vue/shadcn) has its own src/lib — not a Python build artifact
+!/frontend/src/lib/
+!/frontend/src/lib/**
 parts/
 sdist/
 var/
@@ -183,10 +187,25 @@ cython_debug/
 
 /data/geojson/*.geojson
 *.geojson
+!/examples/droneport_experiment/data/heliport.geojson
+!/examples/droneport_experiment/data/regional_mega_shoppings.geojson
 *.csv
 /.vscode
 data/.DS_Store
 .DS_Store
 /data
 examples/.DS_Store
+.venv_test/bin/pip
+.venv_test/bin/pip3
+.venv_test/bin/pip3.10
+.venv_test/bin/python
+.venv_test/bin/python3
+.venv_test/bin/python3.10
+.venv_test/lib64
+.venv_test/pyvenv.cfg
+related_works.md
+reed_weft.md
+*.lock
+flow_abstraction.md
+experiments/recomputation_results.json
 examples/.DS_Store

@@ -2,7 +2,7 @@ from dataclasses import dataclass, fields, MISSING, is_dataclass
 from typing import Any, ClassVar, Dict, Type, TypeVar, Union, get_origin, get_args, cast
 from enum import Enum
 
-from skyweaver.units.yaml_loader.logistics.yaml_parcel import YAMLParcel
+from skyweaver.model.configuration import Configuration
 
 T = TypeVar("T", bound="BaseParameters")
 
@@ -11,7 +11,11 @@ class BaseParameters:
     yaml_section: ClassVar[str]
 
     @classmethod
-    def from_yaml_parcel(cls: Type[T], parcel: YAMLParcel) -> T:
+    def from_configuration(cls: Type[T], configuration: Configuration) -> T:
+        return cls._from_fields(configuration.fields)
+
+    @classmethod
+    def _from_fields(cls: Type[T], yaml_fields: Any) -> T:
 
         if not hasattr(cls, "yaml_section") or not cls.yaml_section:
             raise ValueError(f"{cls.__name__} must define 'yaml_section'")
@@ -19,7 +23,7 @@ class BaseParameters:
         if not is_dataclass(cls):
             raise TypeError(f"{cls.__name__} must be a dataclass")
 
-        raw: Dict[str, Any] = parcel.yaml_fields.get(cls.yaml_section, {}) or {}
+        raw: Dict[str, Any] = yaml_fields.get(cls.yaml_section, {}) or {}
         kwargs: Dict[str, Any] = {}
 
         dataclass_cls = cast(Type[Any], cls)

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@deck.gl/mapbox": "^9.3.2",
+    "@tanstack/vue-table": "^8.20.5",
     "@turf/turf": "^7.3.5",
     "@vueuse/core": "^14.3.0",
     "class-variance-authority": "^0.7.1",

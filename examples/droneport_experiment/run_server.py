@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import uvicorn
@@ -12,14 +13,11 @@ from skyweaver.application.runtime.application_context import (
 from skyweaver.application.runtime.application_runtime import (
     ApplicationRuntime,
 )
-from skyweaver.core.logistics.depot import Depot
 
 CONFIG_PATH = (Path(__file__).parent / "config.yaml").resolve()
 
 
 def main() -> None:
-
-    Depot()
 
     runtime = ApplicationRuntime(
         config_path=str(CONFIG_PATH),
@@ -39,8 +37,8 @@ def main() -> None:
 
     uvicorn.run(
         app,
-        host="127.0.0.1",
-        port=8000,
+        host=os.environ.get("HOST", "0.0.0.0"),
+        port=int(os.environ.get("PORT", 8000)),
     )
 
 

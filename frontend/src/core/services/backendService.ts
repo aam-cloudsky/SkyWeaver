@@ -3,7 +3,7 @@ export async function checkBackendHealth() {
     try {
 
         const response = await fetch(
-            'http://127.0.0.1:8000/health'
+            `${import.meta.env.VITE_API_BASE_URL}/health`
         )
 
         return response.ok

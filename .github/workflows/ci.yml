@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # Reed (aam-cloudsky/Reed) is a dependency pinned to the tag v2.0.0. When
+      # the repository is private, the secret REED_READ_TOKEN holds a
+      # fine-grained GitHub token with read access to that repository only.
+      - name: Give pip access to Reed
+        env:
+          REED_READ_TOKEN: ${{ secrets.REED_READ_TOKEN }}
+        run: |
+          if [ -n "$REED_READ_TOKEN" ]; then
+            git config --global \
+              url."https://x-access-token:${REED_READ_TOKEN}@github.com/aam-cloudsky/Reed".insteadOf \
+              "https://github.com/aam-cloudsky/Reed"
+          fi
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Compile Python sources
+        run: python -m compileall -q src tests tools
+
+      - name: Check that the reference scenes are deterministic
+        run: python tools/record_reference_scenes.py --check-determinism
+
+      - name: Run tests
+        run: python -m pytest

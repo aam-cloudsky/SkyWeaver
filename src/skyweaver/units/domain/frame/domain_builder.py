@@ -15,7 +15,6 @@ import geopandas as gpd
 
 from skyweaver.units.domain.frame.domain import Domain
 from skyweaver.units.domain.frame.local_frame import LocalFrame
-from skyweaver.units.domain.logistics.domain_parcel import DomainParcel
 
 
 class DomainBuilder:

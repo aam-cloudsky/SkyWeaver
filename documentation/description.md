@@ -1,3 +1,5 @@
+> **Status (2026-11-21).** The Depot / Outpost / Parcel core and the operational units described in this document were replaced by a Reed 2.0.0 flow (issue 6). The computation is now `src/skyweaver/flow.py`, its values are `src/skyweaver/model/`, and the runtime is described in `src/skyweaver/application/read-me.md`. The sections on the old core describe the version published at SIGE 2026 (tag `paper-sige2026-camera-ready`).
+
 **Visão Geral**
 
 O código foi construído em torno de uma ideia muito clara: separar o sistema em **unidades operacionais** que não trocam dados diretamente entre si, mas se coordenam por meio de um estado compartilhado e tipado. Esse estado compartilhado é o `Depot`, e a interface declarativa de cada unidade com esse estado é o `Outpost`. Em termos de intenção, o projeto tenta evitar acoplamento direto entre módulos como `sources`, `domain`, `hexgrid`, `routes` e `visualization`, substituindo chamadas ad hoc por um contrato explícito de entrada e saída.

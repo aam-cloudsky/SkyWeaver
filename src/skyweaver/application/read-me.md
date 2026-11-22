@@ -1,54 +1,40 @@
-Application Service Architecture
 # Application Layer
 
-The `application/` package defines the operational orchestration layer of SkyWeaver.
+The `application/` package connects the outside world (the HTTP and WebSocket API, scripts) to SkyWeaver's computation.
 
 This layer is responsible for:
 
-- coordinating runtime execution;
+- owning the Reed session that computes the airspace;
 - interpreting operational intents;
-- dispatching actions;
-- exposing runtime accessors;
-- organizing explicit execution pipelines.
+- applying each intent as one transaction;
+- keeping the current scene and notifying its subscribers.
 
-It is intentionally designed as a synchronous and explicitly orchestrated architecture.
+The computation itself is the Reed flow declared in `skyweaver/flow.py`. This layer feeds that flow and reads its values; it does not compute routes or geometry.
 
 ---
 
-# Architectural Philosophy
+# Runtime Model
 
-SkyWeaver does not use a fully event-driven architecture.
+SkyWeaver's computation is a set of functions of typed, immutable values (`skyweaver/model/`). Each function declares its inputs by its parameter types and its output by its return type, and Reed (`reed-sync` 2.0.0) runs a function when its inputs change.
 
-Instead, the system follows an:
+Execution stays explicit and deterministic:
+
+- the dependencies are the declared types, visible in `skyweaver/flow.py`;
+- in one `push()`, each function runs at most once, after every producer of its inputs (Reed's glitch freedom);
+- a function returns a new value instead of changing a committed one;
+- Reed's execution trace records which functions ran.
 
 ```text
-Application Service Architecture
+ConfigPath → Configuration → SourceGeoData → Domain → HexGrid
+Heliports, CandidateVertiports            (aligned to the domain)
+HeliportCells                             (cells holding a heliport)
+BaseVertiports                            (candidates off heliport cells)
+Vertiports        ← VertiportEdits        (fed by add / remove intents)
+RestrictedCells   ← RestrictionToggles    (fed by the toggle intent)
+AirspaceGraphPack → Routes → SceneSnapshot
 ```
 
-where runtime execution is:
-
-- explicit;
-- deterministic;
-- synchronous;
-- fully traceable.
-
-Operational stages are intentionally invoked through explicit `.run()` calls rather than implicit reactive cascades.
-
-Example:
-
-```python
-units.routes.run()
-```
-
-instead of hidden asynchronous event propagation.
-
-This design improves:
-
-- reproducibility;
-- debugging;
-- scientific traceability;
-- operational transparency;
-- runtime predictability.
+The functions that must react to a single changed input (`apply_vertiport_edits`, `restrict_cells`, `build_airspace_graph`, `compute_routes`, `materialize_scene`) declare `TriggerPolicy.ANY_INPUT_CHANGED`; the others keep Reed's default.
 
 ---
 
@@ -63,77 +49,57 @@ Frontend / API / CLI
         ↓
  Application Handlers
         ↓
-   Runtime Context
+ ApplicationRuntime.transact(update)
         ↓
- Units / Outposts
+ intent_rules: snapshot → value to feed
         ↓
-       Depot
+ Reed session: feed, push
         ↓
- Reactive Synchronization
+ SceneSnapshot
         ↓
- WebSocket / Frontend Projection
+ Subscribers (API scene, WebSocket)
 ```
 
 ---
 
 # Core Concepts
 
-## RuntimeBootstrap
+## ApplicationRuntime
 
-The `RuntimeBootstrap` is the composition root of the system.
+`ApplicationRuntime` owns the Reed session (`skyweaver.flow.start_session`).
 
-Responsibilities:
+At construction it feeds the configuration path, an empty `VertiportEdits` and an empty `RestrictionToggles`, and pushes once.
 
-- initialize the Depot;
-- instantiate runtime units;
-- execute the initialization pipeline;
-- return a ready operational runtime.
+`transact(update)` applies one change under a lock:
 
-It does not contain business logic.
+1. `update` receives the current snapshot and returns the value to feed, or `None` to reject the intent (nothing is fed and nothing recomputes);
+2. the runtime feeds the value and pushes;
+3. it reads the new `SceneSnapshot` and notifies the subscribers once.
 
----
-
-## RuntimeUnits
-
-`RuntimeUnits` is the canonical runtime container.
-
-It owns the instantiated operational units:
-
-- YAML loading;
-- sources;
-- domain construction;
-- alignment;
-- hexagonal discretization;
-- restrictions;
-- routing.
-
-This structure centralizes runtime ownership and simplifies future scalability.
+The lock serializes every use of the session, so two intents arriving on two FastAPI worker threads never interleave a snapshot read and a feed.
 
 ---
 
 ## ApplicationContext
 
-The `ApplicationContext` is a runtime façade.
+The `ApplicationContext` is the façade used by external interfaces.
 
 Responsibilities:
 
-- expose runtime accessors;
-- provide operational queries;
-- coordinate runtime recomputation.
+- expose the current scene and scene subscriptions;
+- dispatch intents.
 
-It does not bootstrap the system.
+It does not bootstrap the system and gives no access to the flow's internals.
 
 ---
 
 ## Intents
 
-Intents represent semantic operational actions.
+Intents represent semantic operational actions in WGS84 coordinates:
 
-Examples:
-
+- `AddVertiport`
+- `RemoveVertiport`
 - `ToggleRestriction`
-- `BeginDragTerminal`
-- `EndDragTerminal`
 
 An intent represents:
 
@@ -149,11 +115,23 @@ something that already happened
 
 ---
 
+## Intent rules
+
+`handlers/intent_rules.py` decides, from a snapshot, what an intent changes:
+
+- add a vertiport: the cell exists, holds no heliport, no vertiport, and is not restricted; the new value is `VertiportEdits` with an `add` edit appended;
+- remove a vertiport: the cell exists and holds a vertiport; the new value is `VertiportEdits` with a `remove` edit appended;
+- toggle a restriction: the cell exists and holds no heliport and no vertiport; the new value is `RestrictionToggles` with the cell added or removed.
+
+The vertiport edit log is provisional: the scenario editor will replace it with a scenario document.
+
+---
+
 ## IntentDispatcher
 
-The dispatcher maps intents into executable application handlers.
+The dispatcher maps intents into application handlers. Each handler calls `ApplicationRuntime.transact` with its rule.
 
-This creates a clean separation between:
+This keeps a clean separation between:
 
 - UI interactions;
 - transport layers;
@@ -161,45 +139,6 @@ This creates a clean separation between:
 
 ---
 
-# Explicit Orchestration
+# Known defect
 
-A fundamental design principle of SkyWeaver is:
-
-```text
-explicit orchestration over implicit automation
-```
-
-The system intentionally avoids:
-
-- hidden side effects;
-- asynchronous execution chains;
-- implicit dependency propagation;
-- opaque runtime mutation.
-
-Instead, the operational pipeline remains fully visible and deterministic.
-
-This architecture is particularly suitable for:
-
-- scientific simulations;
-- operational airspace systems;
-- reproducible experiments;
-- routing research;
-- infrastructure planning.
-
-
-"""
-LEGACY APPLICATION RUNTIME
-
-This module predates the new application-layer architecture.
-
-It is kept temporarily as:
-- operational reference;
-- migration fallback;
-- behavioral comparison.
-
-Future systems should use:
-- RuntimeBootstrap
-- RuntimeUnits
-- ApplicationContext
-- IntentDispatcher
-"""
+No scene reaches the WebSocket after an intent: the intent endpoints are synchronous and run in a worker thread, where `SkyWeaverBackend._on_scene_update` cannot call `asyncio.create_task`. `GET /scene` is up to date; the map updates after a reload. `tests/test_reference_scenes.py::test_websocket_known_defect_no_scene_after_intent` records the defect, and the issue that fixes it inverts that test.

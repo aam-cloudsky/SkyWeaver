@@ -1,7 +1,8 @@
-from typing import Dict, List, Tuple
+from typing import AbstractSet, Dict, List, Tuple
 
 import igraph as ig
 
+from skyweaver.units.hexgrid.geometry.hexcoord import HexCoord
 from skyweaver.units.hexgrid.structure.hexcell import HexCell
 from skyweaver.units.hexgrid.structure.hexgrid import HexGrid
 from skyweaver.units.routes.graph.graph_pack import (
@@ -9,7 +10,6 @@ from skyweaver.units.routes.graph.graph_pack import (
     RoutesGraphPack,
     TerminalsGraphPack,
 )
-from skyweaver.units.routes.logistics.routes_outpost import RoutesOutpost
 
 
 # TODO: Refactor the GraphBuilder to avoid code duplication and improve maintainability.
@@ -17,32 +17,32 @@ from skyweaver.units.routes.logistics.routes_outpost import RoutesOutpost
 # methods or a more generic graph construction approach.
 class GraphBuilder:
     """
-    Builds graph representations from the current grid and path sets.
+    Builds graph representations from a grid and path sets.
     Topology only. Weight computation should not live here.
+    Stateless: every input is an argument.
     """
 
-    def __init__(self, outpost: RoutesOutpost):
-        self.outpost = outpost
-
-    def build_airspace_graph(self) -> AirspaceGraphPack:
-        graph, cell_to_vid, vid_to_cell = self._build_graph_from_grid(
-            self.outpost.grid_parcel.grid
-        )
+    @classmethod
+    def build_airspace_graph(
+        cls, grid: HexGrid, restricted: AbstractSet[HexCoord] = frozenset()
+    ) -> AirspaceGraphPack:
+        graph, cell_to_vid, vid_to_cell = cls._build_graph_from_grid(grid, restricted)
         return AirspaceGraphPack(
             graph=graph,
             _cell_to_vid=cell_to_vid,
             _vid_to_cell=vid_to_cell,
         )
 
-    def build_routes_graph(self, paths: List[List[HexCell]]) -> RoutesGraphPack:
+    @classmethod
+    def build_routes_graph(cls, paths: List[List[HexCell]]) -> RoutesGraphPack:
         g1 = ig.Graph(directed=False)
         cell_to_vid: Dict[HexCell, int] = {}
         vid_to_cell: Dict[int, HexCell] = {}
 
-        terminals = self._collect_terminals(paths)
+        terminals = cls._collect_terminals(paths)
 
         def get_vid(cell: HexCell) -> int:
-            return self._ensure_vertex(g1, cell, terminals, cell_to_vid, vid_to_cell)
+            return cls._ensure_vertex(g1, cell, terminals, cell_to_vid, vid_to_cell)
 
         edges = set()
         for path in paths:
@@ -66,8 +66,9 @@ class GraphBuilder:
             paths=paths,
         )
 
+    @classmethod
     def build_terminals_graph(
-        self,
+        cls,
         paths: List[List[HexCell]],
     ) -> TerminalsGraphPack:
         g2 = ig.Graph(directed=False)
@@ -75,7 +76,7 @@ class GraphBuilder:
         vid_to_cell: Dict[int, HexCell] = {}
 
         def get_vid(cell: HexCell) -> int:
-            return self._ensure_terminal_vertex(g2, cell, cell_to_vid, vid_to_cell)
+            return cls._ensure_terminal_vertex(g2, cell, cell_to_vid, vid_to_cell)
 
         for path_cells in paths:
             start = path_cells[0]
@@ -96,9 +97,11 @@ class GraphBuilder:
             _vid_to_cell=vid_to_cell,
         )
 
+    @classmethod
     def _build_graph_from_grid(
-        self,
+        cls,
         grid: HexGrid,
+        restricted: AbstractSet[HexCoord],
     ) -> tuple[ig.Graph, Dict[HexCell, int], Dict[int, HexCell]]:
         graph = ig.Graph(directed=False)
 
@@ -106,7 +109,7 @@ class GraphBuilder:
         vid_to_cell: Dict[int, HexCell] = {}
 
         for cell in grid.iter_domain_cells():
-            if not cell.is_traversable:
+            if cell.coord in restricted:
                 continue
             vid = graph.vcount()
             graph.add_vertex()
@@ -131,7 +134,8 @@ class GraphBuilder:
 
         return graph, cell_to_vid, vid_to_cell
 
-    def _collect_terminals(self, paths: List[List[HexCell]]) -> set[HexCell]:
+    @classmethod
+    def _collect_terminals(cls, paths: List[List[HexCell]]) -> set[HexCell]:
         terminals: set[HexCell] = set()
         for path in paths:
             if path:
@@ -139,8 +143,9 @@ class GraphBuilder:
                 terminals.add(path[-1])
         return terminals
 
+    @classmethod
     def _ensure_vertex(
-        self,
+        cls,
         graph: ig.Graph,
         cell: HexCell,
         terminals: set[HexCell],
@@ -160,8 +165,9 @@ class GraphBuilder:
         vid_to_cell[vid] = cell
         return vid
 
+    @classmethod
     def _ensure_terminal_vertex(
-        self,
+        cls,
         graph: ig.Graph,
         cell: HexCell,
         cell_to_vid: Dict[HexCell, int],
