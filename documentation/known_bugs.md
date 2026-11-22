@@ -12,12 +12,12 @@ The bugs found while moving SkyWeaver's core to Reed (issue 6), with their statu
 | B6 | `run_system.py` passes `--config`, which `run_server.py` ignores | examples | open |
 | B7 | Toggling a restriction takes about half a second | performance | open |
 | B8 | CI cannot install Reed until the token secret exists | CI | open (configuration) |
-| B9 | Routes changed between processes (memory addresses) | routing | fixed (`0149d09`) |
-| B10 | Concurrent intents could interleave | runtime | fixed (`d9c2fae`) |
-| B11 | The distribution generators could not be imported | units | fixed (`53b1dd4`) |
-| B12 | Examples that did not run | examples | removed (`53b1dd4`) |
-| B13 | The recomputation experiment assumed its node count | experiments | fixed (`53b1dd4`) |
-| B14 | `rich<15` conflicted with Reed | dependencies | fixed (`8a37c57`) |
+| B9 | Routes changed between processes (memory addresses) | routing | fixed (`bc3caa4`) |
+| B10 | Concurrent intents could interleave | runtime | fixed (`6b177c0`) |
+| B11 | The distribution generators could not be imported | units | fixed (`70e36d0`) |
+| B12 | Examples that did not run | examples | removed (`70e36d0`) |
+| B13 | The recomputation experiment assumed its node count | experiments | fixed (`70e36d0`) |
+| B14 | `rich<15` conflicted with Reed | dependencies | fixed (`e10973a`) |
 | B15 | Stale `__pycache__` folders keep deleted packages visible | working tree | open (cleanup command) |
 
 ---
@@ -126,20 +126,20 @@ find src tests tools examples -type d -empty -delete
 ```bash
 SW="$(pwd)"
 git worktree add /tmp/sw_cd02743 cd02743
-git -C /tmp/sw_cd02743 checkout e22771a -- tests tools
+git -C /tmp/sw_cd02743 checkout f4c0aa7 -- tests tools
 cd /tmp/sw_cd02743
 PYTHONPATH=src "$SW/.venv/bin/python" tools/record_reference_scenes.py --check-determinism
 ```
 
 It prints `not deterministic: 00_startup, ...`, and `pytest tests/test_reference_scenes.py -k "not websocket"` fails all five steps. Remove the worktree afterwards: `cd "$SW" && git worktree remove --force /tmp/sw_cd02743`.
 
-**Fix.** `0149d09`: pairs oriented by `(q, r)`, paths built in sorted pair order. `--check-determinism` runs in CI.
+**Fix.** `bc3caa4`: pairs oriented by `(q, r)`, paths built in sorted pair order. `--check-determinism` runs in CI.
 
 ### B10. Concurrent intents could interleave
 
 **Cause.** The old handlers changed the units in place from FastAPI worker threads with no lock, so two requests could interleave a read of the vertiport list and a write. Found by reading the code; not reproduced on `cd02743`.
 
-**Fix.** `d9c2fae`: one lock in `ApplicationRuntime`; every intent goes through `transact`. **Check.** `tests/test_api.py::test_concurrent_intents_lose_no_edit` sends eight intents at once; replacing the lock by a null context makes it fail.
+**Fix.** `6b177c0`: one lock in `ApplicationRuntime`; every intent goes through `transact`. **Check.** `tests/test_api.py::test_concurrent_intents_lose_no_edit` sends eight intents at once; replacing the lock by a null context makes it fail.
 
 ### B11. The distribution generators could not be imported
 
@@ -147,22 +147,22 @@ It prints `not deterministic: 00_startup, ...`, and `pytest tests/test_reference
 
 **Reproduce on the old code.** In the worktree of B9: `PYTHONPATH=src "$SW/.venv/bin/python" -c "import skyweaver.units.distributions.base_distribution"` raises `ModuleNotFoundError: No module named 'skyweaver.distributions'`.
 
-**Fix.** `53b1dd4`: the generators keep their points on the instance. `test_every_module_imports` covers them.
+**Fix.** `70e36d0`: the generators keep their points on the instance. `test_every_module_imports` covers them.
 
 ### B12. Examples that did not run
 
 **Cause.** `examples/clustering/clustering.py`, `grid/hexgrid.py`, `routing/graph.py`, `routing/interactive_routing_not_working.py` and `view/hex_click_toggle.py` imported packages that no longer existed; the others drove the old core.
 
-**Fix.** Removed in `53b1dd4` (list in the commit message). The SIGE 2026 version is the tag `paper-sige2026-camera-ready`.
+**Fix.** Removed in `70e36d0` (list in the commit message). The SIGE 2026 version is the tag `paper-sige2026-camera-ready`.
 
 ### B13. The recomputation experiment assumed its node count
 
 **Cause.** `experiments.py` reported `nodes_reexecuted = 1` as a constant, read from the handler source, not measured. `experiments/benchmark_recomputation.py` never ran (its own docstring says so).
 
-**Fix.** `53b1dd4`: `experiments.py` counts the nodes that start from Reed's execution trace (13 at startup; 4 for a toggle; 3 for an add or remove). The placeholder was removed.
+**Fix.** `70e36d0`: `experiments.py` counts the nodes that start from Reed's execution trace (13 at startup; 4 for a toggle; 3 for an add or remove). The placeholder was removed.
 
 ### B14. `rich<15` conflicted with Reed
 
 **Cause.** SkyWeaver pinned `rich (>=14.3.2,<15.0.0)`; Reed 2.0.0 requires `rich>=15.0.0`, so both could not be installed together.
 
-**Fix.** `8a37c57`: `rich (>=15.0.0,<16.0.0)`.
+**Fix.** `e10973a`: `rich (>=15.0.0,<16.0.0)`.
