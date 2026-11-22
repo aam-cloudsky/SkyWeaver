@@ -111,7 +111,7 @@ This starts the backend runtime, the FastAPI/WebSocket server, and the frontend 
 
 The suite compares the scene after each step of a reference sequence (startup, add a vertiport, remove it, toggle a restriction, toggle it back) with the files in `tests/reference/`, recorded before the migration to Reed. GitHub Actions runs the same commands on every push (`.github/workflows/ci.yml`); while Reed is private, the repository secret `REED_READ_TOKEN` must hold a read-only token for it.
 
-Known defect: no scene reaches the WebSocket after an intent (the intent endpoints run in a worker thread and `asyncio.create_task` fails there), so the map updates only after a reload. `test_websocket_known_defect_no_scene_after_intent` records it; the next issue fixes it.
+Known defect: no scene reaches the WebSocket after an intent (the intent endpoints run in a worker thread and `asyncio.create_task` fails there), so the map updates only after a reload. `test_websocket_known_defect_no_scene_after_intent` records it; the next issue fixes it. Every bug found during the migration, open or fixed, is in `documentation/known_bugs.md` with the steps to reproduce it.
 
 ---
 
