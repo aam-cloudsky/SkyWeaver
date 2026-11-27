@@ -50,7 +50,7 @@ Current state:
 
 ### 1. Backend dependencies
 
-SkyWeaver depends on Reed, pinned to `git+https://github.com/aam-cloudsky/Reed.git@v2.0.0`. Your GitHub credentials must give read access to that repository while it is private. With [uv](https://docs.astral.sh/uv/):
+SkyWeaver depends on [Reed](https://github.com/aam-cloudsky/Reed), a public repository, pinned to `git+https://github.com/aam-cloudsky/Reed.git@v2.0.0`; no credentials are needed. With [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv python install 3.12
@@ -88,7 +88,7 @@ This starts the backend runtime, the FastAPI/WebSocket server, and the frontend 
 .venv/bin/python tools/record_reference_scenes.py --check-determinism
 ```
 
-The suite compares the scene after each step of a reference sequence (startup, add a vertiport, remove it, toggle a restriction, toggle it back) with the files in `tests/reference/`, recorded before the migration to Reed. GitHub Actions runs the same commands on every push (`.github/workflows/ci.yml`); while Reed is private, the repository secret `REED_READ_TOKEN` must hold a read-only token for it.
+The suite compares the scene after each step of a reference sequence (startup, add a vertiport, remove it, toggle a restriction, toggle it back) with the files in `tests/reference/`, recorded before the migration to Reed. GitHub Actions runs the same commands on every push (`.github/workflows/ci.yml`), with no secrets.
 
 ---
 
