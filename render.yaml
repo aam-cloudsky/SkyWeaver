@@ -3,13 +3,9 @@ services:
     name: skyweaver-api
     runtime: python
     plan: free
-    # Reed is a dependency pinned to github.com/aam-cloudsky/Reed@v2.0.0. While
-    # that repository is private, REED_READ_TOKEN (a secret set in the Render
-    # dashboard) holds a fine-grained token with read access to it only.
+    # Reed is a public dependency pinned to github.com/aam-cloudsky/Reed@v2.0.0
+    # in pyproject.toml; the build installs it with no credentials.
     buildCommand: >-
-      if [ -n "$REED_READ_TOKEN" ]; then
-      git config --global url."https://x-access-token:${REED_READ_TOKEN}@github.com/aam-cloudsky/Reed".insteadOf "https://github.com/aam-cloudsky/Reed";
-      fi &&
       pip install --upgrade pip &&
       pip install -e .
     startCommand: python examples/droneport_experiment/run_server.py
@@ -19,8 +15,6 @@ services:
         value: 3.12.7
       - key: PYTHONUNBUFFERED
         value: "1"
-      - key: REED_READ_TOKEN
-        sync: false
 
   - type: web
     name: skyweaver-frontend

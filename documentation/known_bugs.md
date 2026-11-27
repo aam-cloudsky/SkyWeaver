@@ -11,7 +11,7 @@ The bugs found while moving SkyWeaver's core to Reed (issue 6), with their statu
 | B5 | A rejected intent answers `200 {"status": "ok"}` | API | open |
 | B6 | `run_system.py` passes `--config`, which `run_server.py` ignores | examples | open |
 | B7 | Toggling a restriction takes about half a second | performance | open |
-| B8 | CI cannot install Reed until the token secret exists | CI | open (configuration) |
+| B8 | CI could not install Reed while its repository was private | CI | fixed (Reed public) |
 | B9 | Routes changed between processes (memory addresses) | routing | fixed (`9b419f1`) |
 | B10 | Concurrent intents could interleave | runtime | fixed (`690872c`) |
 | B11 | The distribution generators could not be imported | units | fixed (`be27089`) |
@@ -95,12 +95,6 @@ answers `{"status":"ok"}` and the scene does not change (`tests/test_api.py::tes
 
 **Reproduce.** `.venv/bin/python experiments.py --repeats 3`. On the local VM: toggle about 535 ms (4 of 13 nodes), add or remove about 43 ms (3 of 13). The old core rebuilt the airspace graph on every intent.
 
-### B8. CI cannot install Reed until the token secret exists
-
-**Cause.** `reed-sync` is installed from `github.com/aam-cloudsky/Reed`, which needs credentials while the repository is private. `.github/workflows/ci.yml` and `render.yaml` use `REED_READ_TOKEN` when it is set.
-
-**Reproduce.** Push the branch without the secret: the "Install package" step fails to clone Reed. **Fix.** Create a fine-grained read-only token for the Reed repository and store it as the repository secret `REED_READ_TOKEN` (and as the Render variable of the same name), or make Reed public.
-
 ### B15. Stale `__pycache__` folders keep deleted packages visible
 
 **Cause.** Git does not track folders. Folders that held only bytecode (`src/skyweaver/core/`, `tests/flow/`, `units/*/logistics/`) stay in a working tree after their files are deleted. Nothing in them is imported; `test_architecture` checks for Python files, not folders.
@@ -116,6 +110,12 @@ find src tests tools examples -type d -empty -delete
 ---
 
 ## Fixed
+
+### B8. CI could not install Reed while its repository was private
+
+**Cause.** `reed-sync` is installed from `github.com/aam-cloudsky/Reed`, which needed credentials while the repository was private. Every run of the workflow failed at "Install package".
+
+**Fix.** Reed was made public on 2026-11-27. The read token (`REED_READ_TOKEN`) was removed from `.github/workflows/ci.yml`, `render.yaml` and the README. In a clean Python 3.12 environment with no credentials, the steps of the workflow pass: installation, compilation, the determinism check and the 102 tests.
 
 ### B9. Routes changed between processes
 
